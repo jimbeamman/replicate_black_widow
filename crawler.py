@@ -30,7 +30,11 @@ class Graph:
         
         def __repr__(self):
             return str(self.value)
-    
+        def __eq__(self, other):
+            return self.value == other.value
+        def __hash__(self):
+            return hash(self.value)
+        
     class Edge:
         def __init__(self, n1, n2, value, parent=None):
             self.n1 = n1
@@ -41,7 +45,11 @@ class Graph:
         
         def __repr__(self):
             return str(self.n1) + " -("+str(self.value)+"["+str(self.visited)+"])->" +str(self.n2)
-    
+        def __eq__(self, other):
+            return self.n1 == other.n1 and self.n2 == other.n2 and self.value == other.value
+        def __hash__(self):
+            return hash( hash(self.n1) + hash(self.n2) + hash(self.value))
+
     def add(self, value):
         node = self.Node(value)
         if not node in self.nodes:
