@@ -7,7 +7,7 @@ import random
 class Request:
     def __init__(self, url, method):
         self.url = url
-        self.method = method   #GET/POST 
+        self.method = method   #GET/POST write condition to accept only GET/POST
 
     def __repr__(self):
         if not self:
@@ -25,20 +25,54 @@ class Request:
             ret = ret + self.url
             
         return ret 
+    
+    def __eq__(self, other):
+        if isinstance(other, Request):  #check the object is an instance of the class 
+            return (self.url == other.url and self.method == other.method)
+        return False
+    
+    def __hash__(self):
+        return hash(self.url + self.method)
 
 class Crawler:
     def __init__(self,driver,url):
         self.driver = driver
         self.url = url
-
-                
-        print(self.url)
+        self.graph = Graph()
         
+        self.session_id = str(time.time()) + "-" + str(random.randint(1,10000000))
+
+        self.attack_lookup_table = {}
+        self.io_graph = {}
+        
+        
+        # Optimization to do multiple events in a row without
+        # page reloads.
+        self.events_in_row = 0
+        self.max_events_in_row = 15
+
+        # Start with gets
+        self.early_gets = 0
+        self.max_early_gets = 100
+
+        # Dont attack same form too many times
+        # hash -> number of attacks
+        self.attacked_forms = {}
+
+        # Dont submit same form too many times
+        self.done_form = {}
+        self.max_done_form = 5
+
+        # print out or logging
+                
     def start(self, debug_mode=False):
         self.root_req = Request("ROOTREQ", "get") #reguest url 
         req = Request(self.url, "get")
-        
-        
+        self.graph.add(self.root_req)
+        self.graph.add(req)
+        self.graph.connect(self.root_req, req, CrawlEdge("get", None, None))
+        self.debug_mode = debug_mode
+                
     def attack(self):  #adtack 
         print("hello world")
         
@@ -91,6 +125,12 @@ class Graph:
         n1 = self.Node(v1)
         n2 = self.Node(v2)
         edge = self.Edge(n1, n2, value, parent)
+        return edge
+    
+    def connect(self, v1, v2, value, parent=None):
+        n1 = self.Node(v1)
+        n2 = self.Node(v2)
+        edge = self.Edge(n1, n2, value, parent)
 
         #check current edges available in global node + edge
         p1 = n1 in self.nodes
@@ -138,3 +178,6 @@ class Graph:
             res += str(edge.n1) + " -("+str(edge.value)+"["+str(edge.visited)+"])-> " + str(edge.n2) + "\n"
         res += "\n---/GRAPH---"
         return res
+    
+class CrawlEdge:
+    pass
