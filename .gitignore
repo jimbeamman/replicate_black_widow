@@ -33,10 +33,11 @@
 ._*
 .Spotlight-V100
 .Trashes
+.gitignore
 ehthumbs.db
 Thumbs.db
 
 #Cache and Virtual Environment#
 ###############################
-venv
-__pycache__
+venv/
+__pycache__/

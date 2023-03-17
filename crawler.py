@@ -1,16 +1,45 @@
 from selenium import webdriver
 
-#class Request:
+
+import time
+import random
+
+class Request:
+    def __init__(self, url, method):
+        self.url = url
+        self.method = method   #GET/POST 
+
+    def __repr__(self):
+        if not self:
+            return "NO SELF IN REPR"
+        ret = ""
+        
+        if not self.method:
+            ret = ret + "[NO METHOD?] "
+        else:
+            ret = ret + "[" +self.method + "]"
+        
+        if not self.url:
+            ret = ret + "[NO URL?]"
+        else:
+            ret = ret + self.url
+            
+        return ret 
 
 class Crawler:
     def __init__(self,driver,url):
         self.driver = driver
         self.url = url
-                
+
                 
         print(self.url)
         
-    def attack(self): 
+    def start(self, debug_mode=False):
+        self.root_req = Request("ROOTREQ", "get") #reguest url 
+        req = Request(self.url, "get")
+        
+        
+    def attack(self):  #adtack 
         print("hello world")
         
     # def attack_sql(self):
