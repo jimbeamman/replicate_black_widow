@@ -1,8 +1,11 @@
 from selenium import webdriver
 
+from urllib.parse import urlparse, urljoin
+
 
 import time
 import random
+import traceback
 
 class Request:
     def __init__(self, url, method):
@@ -72,7 +75,64 @@ class Crawler:
         self.graph.add(req)
         self.graph.connect(self.root_req, req, CrawlEdge("get", None, None))
         self.debug_mode = debug_mode
+        
+        if not debug_mode: #create new URL path and connect
+            purl = urlparse(self.url)
+            if purl.path:
+                path_builder = ""
+                for d in purl.path.split("/")[:-1]:
+                    if d:
+                        path_builder += d + "/"
+                        tmp_purl = purl._replace(path=path_builder)
+                        req = Request(tmp_purl.geturl(), "get")
+                        self.graph.add(req)
+                        self.graph.connect(self.root_req, req, CrawlEdge("get", None, None))
+        
+        self.graph.data['urls'] = {}
+        self.graph.data['form_url'] = {}
+        open("run.flag", "w+").write("1")
+        open("queue.txt", "w+").write("")
+        open("command.txt", "w+").write("")
+        
+        random.seed( 6 )
+        
+        still_work = True
+        while still_work:
+            print ("-"*50)
+            new_edges = len([edge for edge in self.graph.edges if edge.visited == False])
+            print("Edges left: %s" % str(new_edges))
+            try: 
+                #read txt file 
+                n_gets = 0
+                for edge in self.graph.edges:
+                    if edge.visited == False:
+                        if edge.value.method == "get":
+                            n_gets += 1
+                print()
+                print("--------------")
+                print("GET")  
+                print(str(n_gets).ljust(7))
+                print("--------------")
                 
+                try:
+                    still_work = self.rec_crawl()   #recursive crawling
+                except Exception as e:
+                    still_work = n_gets
+                    print(e)
+                    print(traceback.format_exec()) 
+                    
+                    #print or log
+            
+            except KeyboardInterrupt:
+                print ("CTRL-C, abort mission")
+                break
+        
+        print("Done crawling, ready to attack")
+
+                            
+        #crawling function
+        self.attack()
+        
     def attack(self):  #adtack 
         print("hello world")
         
@@ -85,6 +145,7 @@ class Graph:
     def __init__(self):
         self.nodes = []
         self.edges = []
+        self.data  = {}
     
     class Node:
         def __init__(self, value):

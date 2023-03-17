@@ -7,6 +7,7 @@ from Crawler import *
 
 parser = argparse.ArgumentParser(description='Black box crawler')
 parser.add_argument("--url", help="URL for crawling")
+# parser.add_argument("--debug", action="store_true", help="Dont use path deconstruction and recon scan. Good for testing single URL")
 #parser.add_argument("--xss", help="XSS attack")
 #parser.add_argument("--sql", help="SQL injection")
 args = parser.parse_args()
@@ -20,8 +21,8 @@ chrome_options.add_argument("--disable-xss-auditor")
 # driver = webdriver.Chrome(options = chrome_options)
 driver = webdriver.Chrome(options = chrome_options)
 
-
-Crawler(driver.url).attack()
+url = args.url
+Crawler(driver,url).start()
 
 # if args.url:
 #     url=args.url
