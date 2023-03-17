@@ -180,4 +180,16 @@ class Graph:
         return res
     
 class CrawlEdge:
-    pass
+    def __init__(self, method, method_data, cookies):
+        self.method = method
+        self.method_data = method_data
+        self.cookies = cookies
+        
+    def __repr__(self):
+        return str(self.method) + " " + str(self.method_data)
+    
+    def __eq__(self, other):
+        return (self.method == other.method and self.method_data == other.method_data)
+    
+    def __hash__(self):
+        return hash( hash(self.method) + hash(self.method_data))
