@@ -6,6 +6,14 @@ from urllib.parse import urlparse, urljoin
 import time
 import random
 import traceback
+import os 
+
+import logging
+log_file = os.path.join(os.getcwd(), 'logs', 'crawl-'+str(time.time())+'.log')
+logging.basicConfig(filename=log_file, format='%(asctime)s\t%(name)s\t%(levelname)s\t[%(filename)s:%(lineno)d]\t%(message)s', datefmt='%Y-%m-%d:%H:%M:%S', level=logging.DEBUG)
+for v in logging.Logger.manager.loggerDict.values():
+    v.disabled = True
+
 
 class Request:
     def __init__(self, url, method):
@@ -120,22 +128,71 @@ class Crawler:
                     still_work = n_gets
                     print(e)
                     print(traceback.format_exec()) 
-                    
-                    #print or log
+                    logging.error(e)
+                    logging.error("Top level error while crawling")
+                #Enter to continute
             
             except KeyboardInterrupt:
                 print ("CTRL-C, abort mission")
                 break
         
         print("Done crawling, ready to attack")
-
-                            
-        #crawling function
         self.attack()
         
-    def attack(self):  #adtack 
-        print("hello world")
+    def extract_vectors(self):
+        print("Extracting urls")
+        vectors = []
+        added = set()
         
+        exploit_events = ["input", "oninput", "onchange", "compositionstart"]
+        
+        #GET
+        for node in self.graph.nodes:
+            if node.value.url != "ROOTREQ":
+                purl = urlparse(node.value.url)
+                if purl.scheme[:4] == "http" and not node.value.url in added:
+                    vectors.append( ("get", node.value.url))
+                    added.add(node.value.url)
+                    
+        
+        return vectors
+    
+        
+    
+    def attack(self):  #attack 
+        driver = self.driver
+        seccessful_xss = set() #non repeatable 
+        vectors = self.extract_vectors() 
+        
+        
+        print("hello world")
+    
+    def load_page(self, driver, graph):
+        request = None
+        edge = self.next_unvisited_edge(driver, graph)
+        if not edge:
+            return None
+        
+        graph.data['prev_edge'] = edge
+        
+        request = edge.n2.value
+        
+        logging.info("Current url: " + driver.current_url)
+        logging.info("Crawl (edge): " + str(edge) )
+        print("Crawl (edge): " + str(edge))
+        
+        return (edge, request)
+    
+    def rec_crawl(self):
+        driver = self.driver
+        graph = self.graph
+        
+        todo = self.load_page(driver, graph)
+    
+    def next_unvisited_edge(self,driver,graph):
+        pass
+
+    
     # def attack_sql(self):
     #     print("")
 
