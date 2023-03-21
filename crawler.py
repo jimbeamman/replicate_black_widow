@@ -163,10 +163,10 @@ class Crawler:
     
     def attack(self):  #attack 
         driver = self.driver
-        seccessful_xss = set() #non repeatable 
+        successful_xss = set() #non repeatable set 
         vectors = self.extract_vectors() 
         
-        pprint.print(vectors)
+        pprint.pprint(vectors)
         
         done = set()
         for edge in self.graph.edges:
@@ -177,6 +177,37 @@ class Crawler:
                     successful = follow_edge(driver, self.graph, edge)        
                     if successful:
                         self.track_form(driver, edge)
+        
+        #attack XSS
+        gets_to_attack = [(vector_type, vector) for (vector_type, vector) in vectors if vector_type == "get" ]
+        get_c = 0
+        for (vector_type, vector) in gets_to_attack:
+            print("Progress (get): ", get_c, "/", len(gets_to_attack))
+            if vector_type == "get":
+                get_xss = self.attack_get(driver, vector) #attack xss get
+                seccessful_xss = seccessful_xss.union(get_xss)
+            get_c += 1
+            
+        quick_xss = self.quick_check_xss(driver, vectors)
+        seccessful_xss = successful_xss.union(quick_xss)
+        
+        print("-"*50)
+        print("Successful attacks: ", len(seccessful_xss))
+        print("-"*50)
+        
+        f = open("successful_xss.txt", "w")
+        f.write(str(successful_xss))
+        f = open("attack_lookup_table.txt", "w")
+        f.write(str(self.attack_lookup_table))
+        
+        print("ATTACK TABLE\n\n\n\n")
+        
+        for (k,v) in self.attack_lookup_table.items():
+            if v["reflected"]:
+                print(k,v)
+                print("-"*50)
+            
+        
         
     
         

@@ -11,8 +11,17 @@ import traceback
 import os 
 import pprint
 
+import Crawler
+
 import logging
 
+
+def same_origin(u1, u2):
+    p1 = urlparse(u1)
+    p2 = urlparse(u2)
+    
+    return (p1.scheme == p2.scheme
+            and p1.netloc == p2.netloc )
 
 def check_edge(driver, graph, edge):
     logging.info("Check edge: " + str(edge))
@@ -45,5 +54,40 @@ def follow_edge(driver, graph, edge):
     
     return True
 
-def allow_edge():
-    pass
+def allow_edge(graph, edge):
+    
+    crawl_edge = edge.value
+    
+    if crawl_edge.method == "get":
+        to_url = edge.n2.value.url
+    else:
+        logging.info("Unsure about method %s, will allow." % crawl_edge.method)
+        return True
+    
+    from_url = graph.node[1].value.url
+    
+    parsed_to_url = urlparse(to_url)
+    
+    if not parsed_to_url.scheme:
+        return True
+    
+    if parsed_to_url.scheme == "javascript":
+        return True
+    
+    so = same_origin(from_url, to_url)
+    
+    blacklisted_term = []
+    if blacklisted_term:
+        logging.warning("using blacklisted terms!")
+    
+    if to_url:
+        bl = any([bt in to_url for bt in blacklisted_term])
+    else:
+        bl = False
+        
+    if so and not bl:
+        return True
+    else:
+        logging.debug("Different origins %s and %s" % (str(from_url), str(to_url)))
+        return False
+    
