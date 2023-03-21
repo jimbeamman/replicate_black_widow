@@ -77,7 +77,7 @@ class Crawler:
         self.done_form = {}
         self.max_done_form = 5
 
-        # print out or logging
+        logging.info("Init crawl on " + url)
                 
     def start(self, debug_mode=False):
         self.root_req = Request("ROOTREQ", "get") #reguest url 
@@ -112,8 +112,17 @@ class Crawler:
             print ("-"*50)
             new_edges = len([edge for edge in self.graph.edges if edge.visited == False])
             print("Edges left: %s" % str(new_edges))
-            try: 
-                #read txt file 
+            try:
+                
+                if "0" in open("run.flag", "r").read():
+                    logging.info("Run set to 0, stop crawling") 
+                    break
+                if "2" in open("run.flag", "r").read():
+                    logging.info("Run set to 2, pause crawling")
+                    input("Crawling paused, press enter to continue")
+                    open("run.flag", "w+").write("3")
+                
+                #attack only get need more form + event   
                 n_gets = 0
                 for edge in self.graph.edges:
                     if edge.visited == False:
@@ -141,7 +150,7 @@ class Crawler:
         
         print("Done crawling, ready to attack")
         self.attack()
-        
+    
     def extract_vectors(self):
         print("Extracting urls")
         vectors = []
@@ -156,17 +165,96 @@ class Crawler:
                 if purl.scheme[:4] == "http" and not node.value.url in added:
                     vectors.append( ("get", node.value.url))
                     added.add(node.value.url)
-                    
+        #implement FORMS and EVENTS 
+        
         return vectors
     
+    #implement these funcitons 
+    def attack_404(self, driver, attack_lookup_table):
+        pass
+    
+    def attack_event(self, driver, vector_edge):
+        pass
+    
+    def attack_get(self, driver, vector):
+        pass
+    
+    def xss_find_state(self, driver, edge):
+        pass
+    
+    def fix_form(self, form, payload_template, safe_attack):
+        pass
+    
+    def get_payload(self):
+        pass
+    
+    def arm_payload(self, payload_template):
+        pass
+    
+    def use_payload(self, lookup_id, vector_with_payload):
+        pass
+    
+    def inspect_attack(self, vector_edge):
+        pass
+    
+    def reflected_payload(self, lookup_id, location):
+        pass
+    
+    def get_table_entry(self, lookup_id):
+        pass
+    
+    def execute_path(self, driver, path):
+        pass   
+ 
+    def get_tracker(self):
+        pass
+    
+    def use_tracker(self, tracker, vector_with_payload):
+        pass
+      
+    def inspect_tracker(self, vector_edge):
+        pass
+    
+    def track_form(self, driver, vector_edge):
+        succesful_xss = set()
         
+        graph = self.graph
+        path = rec_find_path(graph, vector_edge)
+        
+        form_edges = []
+        for edge in path:
+            if edge.value.method == "form":
+                form_edges.append(edge)
+        
+        for form_edge in form_edges:
+            form = form_edge.value.method_data
+            tracker = self.get_tracker()
+            for parameter in form.inputs:
+                # List all injectable input types text, textarea, etc.
+                if parameter.itype == "text" or parameter.itype == "textarea":
+                    # Arm the payload
+                    form.inputs[parameter].value = tracker
+                    self.use_tracker(tracker, (form_edge,parameter,tracker))
+
+        self.execute_path(driver, path)
+
+        # Inspect
+        inspect_tracker =  self.inspect_tracker(vector_edge)
+
+        return succesful_xss       
+
+    def path_attack_form(self, driver, vector_edge, check_edge=None):
+        pass
+    
+    def attack_ui_form(self, driver, vector_edge):
+        pass
     
     def attack(self):  #attack 
         driver = self.driver
-        successful_xss = set() #non repeatable set 
+        successful_xss = set() #non repeat elements  
         vectors = self.extract_vectors() 
         
-        pprint.pprint(vectors)
+        pprint.pprint(vectors) #print json complex structure 
         
         done = set()
         for edge in self.graph.edges:
@@ -179,6 +267,7 @@ class Crawler:
                         self.track_form(driver, edge)
         
         #attack XSS
+        #implement SQL?
         gets_to_attack = [(vector_type, vector) for (vector_type, vector) in vectors if vector_type == "get" ]
         get_c = 0
         for (vector_type, vector) in gets_to_attack:
@@ -187,7 +276,8 @@ class Crawler:
                 get_xss = self.attack_get(driver, vector) #attack xss get
                 seccessful_xss = seccessful_xss.union(get_xss)
             get_c += 1
-            
+        
+        #quick check for store = reduce false positive? 
         quick_xss = self.quick_check_xss(driver, vectors)
         seccessful_xss = successful_xss.union(quick_xss)
         
@@ -206,13 +296,13 @@ class Crawler:
             if v["reflected"]:
                 print(k,v)
                 print("-"*50)
-            
-        
-        
+
+    def quick_check_xss(self, driver, vectors):
+        pass
     
-        
-        print("hello world")
-    
+    def next_unvisited_edge(self,driver,graph):
+        pass
+
     def load_page(self, driver, graph):
         request = None
         edge = self.next_unvisited_edge(driver, graph)
@@ -235,8 +325,6 @@ class Crawler:
         
         todo = self.load_page(driver, graph)
     
-    def next_unvisited_edge(self,driver,graph):
-        pass
 
     
     # def attack_sql(self):

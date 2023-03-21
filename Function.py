@@ -15,25 +15,45 @@ import Crawler
 
 import logging
 
+def send(driver, cmd, params=()):
+    pass
 
-def same_origin(u1, u2):
-    p1 = urlparse(u1)
-    p2 = urlparse(u2)
-    
-    return (p1.scheme == p2.scheme
-            and p1.netloc == p2.netloc )
+def add_script(driver, script):
+    pass
+
+def xpath_row_to_cell(addr):
+    pass
+
+def remove_alert(driver):
+    pass
+
+def depth(edge):
+    pass
+
+def dom_depth(edge):
+    pass
+
+def find_state(driver, graph, edge):
+    pass
+
+def rec_find_path(self):
+    pass
+
+def edge_sort(edge):
+    pass
 
 def check_edge(driver, graph, edge):
     logging.info("Check edge: " + str(edge))
     method = edge.value.method
     method_data = edge.value.method_data
     
+    #implement form + event
     if method == "get":
         if allow_edge(graph, edge):
             purl = urlparse(edge.n2.value.url)
             if not purl.path in graph.data['urls']:
                 graph.data['urls'][purl.path] = 0
-            graph.data['urls'][purl.data] += 1
+            graph.data['urls'][purl.path] += 1
             
             if graph.data['urls'][purl.path] > 120:
                 return False
@@ -42,11 +62,15 @@ def check_edge(driver, graph, edge):
         else:
             logging.warning("Not allow to get %s" % str(edge.n2.value))
             return False
-
+    else:
+        return True
+    
 def follow_edge(driver, graph, edge):
     logging.info("Follow edge: " + str(edge))
     method = edge.value.method
     method_data = edge.value.method_data 
+    
+    #implement event, form, iframe
     if method == "get":
         driver.get(edge.n2.value.url)
     else:
@@ -54,17 +78,25 @@ def follow_edge(driver, graph, edge):
     
     return True
 
+def same_origin(u1, u2):
+    p1 = urlparse(u1)
+    p2 = urlparse(u2)
+    
+    return (p1.scheme == p2.scheme
+            and p1.netloc == p2.netloc )
+
 def allow_edge(graph, edge):
     
     crawl_edge = edge.value
     
+    #implement others form, iframe, event
     if crawl_edge.method == "get":
         to_url = edge.n2.value.url
     else:
         logging.info("Unsure about method %s, will allow." % crawl_edge.method)
         return True
     
-    from_url = graph.node[1].value.url
+    from_url = graph.nodes[1].value.url
     
     parsed_to_url = urlparse(to_url)
     
@@ -90,4 +122,48 @@ def allow_edge(graph, edge):
     else:
         logging.debug("Different origins %s and %s" % (str(from_url), str(to_url)))
         return False
-    
+
+def execute_event(driver, do):
+    pass
+
+def form_fill_file(filename):
+    pass
+
+def fuzzy_eq(form1, form2):
+    pass
+
+def update_value_with_js(driver, web_element, new_value):
+    pass
+
+def form_fill(driver, target_form):
+    pass
+
+def ui_form_fill(driver, target_form):
+    pass
+
+def set_standard_values(old_form):
+    pass
+
+def set_submits(forms):
+    pass
+
+def set_checkboxes(forms):
+    pass
+
+def set_form_values(forms):
+    pass
+
+def enter_iframe(driver, target_frame):
+    pass
+
+def find_login_form(driver, graph, early_state=False):
+    pass
+
+def linkrank(link_edges, visited_list):
+    pass
+
+def new_files(link_edges, visite_list):
+    pass
+
+def empty2node(s):
+    pass
