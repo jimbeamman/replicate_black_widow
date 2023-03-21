@@ -7,6 +7,9 @@ import time
 import random
 import traceback
 import os 
+import pprint
+
+from Function import *
 
 import logging
 log_file = os.path.join(os.getcwd(), 'logs', 'crawl-'+str(time.time())+'.log')
@@ -154,7 +157,6 @@ class Crawler:
                     vectors.append( ("get", node.value.url))
                     added.add(node.value.url)
                     
-        
         return vectors
     
         
@@ -164,6 +166,19 @@ class Crawler:
         seccessful_xss = set() #non repeatable 
         vectors = self.extract_vectors() 
         
+        pprint.print(vectors)
+        
+        done = set()
+        for edge in self.graph.edges:
+            if edge.value.method == "get":
+                if not check_edge(driver, self.graph, edge):
+                    logging.warning("Check_edge failed for in attack phase" + str(edge))
+                else:
+                    successful = follow_edge(driver, self.graph, edge)        
+                    if successful:
+                        self.track_form(driver, edge)
+        
+    
         
         print("hello world")
     
