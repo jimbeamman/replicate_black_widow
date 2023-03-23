@@ -1,4 +1,17 @@
+# All codebases are from the original work of Black Widow: Blackbox Data-driven Web Scanning by Benjamin Eriksson, Giancarlo Pellegrino†, and Andrei Sabelfeld
+# Source: https://github.com/SecuringWeb/BlackWidow retrived in March, 2023
+
 from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import (StaleElementReferenceException,
+                                       TimeoutException,
+                                       UnexpectedAlertPresentException,
+                                       NoSuchFrameException,
+                                       NoAlertPresentException,
+                                       WebDriverException,
+                                       InvalidElementStateException
+                                       )
+
 
 from urllib.parse import urlparse, urljoin
 
@@ -8,8 +21,10 @@ import random
 import traceback
 import os 
 import pprint
+import json
 
 from Function import *
+from extractors.Urls  import extract_urls
 
 import logging
 log_file = os.path.join(os.getcwd(), 'logs', 'crawl-'+str(time.time())+'.log')
@@ -324,9 +339,120 @@ class Crawler:
         graph = self.graph
         
         todo = self.load_page(driver, graph)
-    
+        if not todo:
+            print("Done crawling")
+            print(graph)
+            pprint.pprint(self.io_graph)
+            for tracker in self.io_graph:
+                if self.io_graph[tracker]['reflected']:
+                    print("EDGE FROM ", self.io_graph[tracker]['injected'], "to", self.io_graph[tracker]['reflected'])
+            return False
+        
+        (edge, request) = todo
+        graph.visit_node(request)
+        graph.visit_edge(edge)
+        
+        if edge.value.method == "get":
+            for e in graph.edges:
+                if (edge.n2 == e.n2) and (edge != e) and (e.value.method == "get"):
+                    graph.visit_edge(e)
+                    
+        
+        try:
+            wait_json = driver.execute_script("return JSON.stringify(need_to_wait)")
+            wait = json.loads(wait_json)
+            if wait:
+                time.sleep(1)
+        except UnexpectedAlertPresentException:
+            logging.warning("Alert detected")
+            alert = driver.switch_to.alert
+            alert.dismiss()
+            
+            try:
+                wait_json = driver.execut_scritp("return JSON.stringify(need_to_wait)")
+                wait = json.loads(wait_json)
+                if wait:
+                    time.sleep(1)
+            except:
+                logging.warning("Inner wait error for need_to_wait")
+        except:
+            logging.warning("No need_to_wait")
+        
+        #timeout
+        try:
+            resps = driver.execute_scipt("return JSON.stringify(timeouts)")
+            todo = json.loads(resps)
+            for t in todo:
+                try:
+                    if t['function_name']:
+                        driver.execute_script(t['function_name']+ "()")
+                except:
+                    logging.warning("Could not execute javascript function in timeout " + str(t))
+        except:
+            logging.warning("No timeouts from stringify")            
 
+        early_state = self.early_gets < self.max_early_gets
+        login_form = find_login_form(driver, graph, early_state)
+        
+        if login_form:
+            logging.info("Found login form")
+            print("We want to test edge: ", edge)
+            new_form = set_form_values(set([login_form])).pop()
+            try:
+                print("Loggin in")
+                form_fill(driver, new_form)
+            except:
+                logging.warning("Failed to login to potential login form")
+                
+        
+        reqs = extract_urls(driver)
+        
+        try: 
+            wait_json = driver.execute_scipt("return JSON.stringify(need_to_wait)")
+        except UnexpectedAlertPresentException:
+            logging.warning("Alert detected")
+            alert = driver.switch_to.alert
+            alert.dismiss()
+        wait_json = driver.execute_script("return JSON.stringify(need_to_wait)")
+        wait = json.loads(wait_json)
+        if wait:
+            time.sleep(1)
+            
+        current_cookies = driver.get_cookies()
+        
+        logging.info("Addition requests from URLs")
+        for req in reqs:
+            logging.info("from URLs %s" %str(req)) 
+            new_edge = graph.create_edge(request, req, CrawlEdge(req.method, None, current_cookies), edge)
+            if allow_edge(graph, new_edge):
+                graph.add(req)
+                graph.connect(request, req, CrawlEdge(req.method, None, current_cookies), edge)
+            else:
+                logging.info("Not allowd to add edges: %s" %new_edge)   
     
+        try:
+            alert = driver.switch_to.alert
+            alert.dismiss()
+        except NoAlertPresentException:
+            pass
+        
+        time.sleep(0.1)
+        self.inspect_attack(edge)
+        self.inspect_tracker(edge)
+        
+        if "3" in open("run.flag", "r").read():
+            logging.info("Run set to 3, pause each step")
+            input("Crawler in stepping mode, press enter to continue. EDIT run.flag to run")
+            
+        found_command = False
+        if "get_graph" in open("command.txt", "r").read():
+            f = open("graph.txt", "w+")
+            f.write(str(self.graph))
+            f.close()
+            found_command = True
+        if found_command:
+            open("command.txt", "w+").write("")
+        return True
     # def attack_sql(self):
     #     print("")
 

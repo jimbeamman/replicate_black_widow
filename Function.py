@@ -1,6 +1,19 @@
+# All codebases are from the original work of Black Widow: Blackbox Data-driven Web Scanning by Benjamin Eriksson, Giancarlo Pellegrino†, and Andrei Sabelfeld
+# Source: https://github.com/SecuringWeb/BlackWidow retrived in March, 2023
+
 #general functions
 
 from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import (StaleElementReferenceException,
+                                       TimeoutException,
+                                       UnexpectedAlertPresentException,
+                                       NoSuchFrameException,
+                                       NoAlertPresentException,
+                                       WebDriverException,
+                                       InvalidElementStateException
+                                       )
+
 
 from urllib.parse import urlparse, urljoin
 
@@ -10,6 +23,7 @@ import random
 import traceback
 import os 
 import pprint
+import json
 
 import Crawler
 
