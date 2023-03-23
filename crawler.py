@@ -90,13 +90,12 @@ class Form:
             return hash(hash(self.itype)+ hash(self.name))
         
         
-    class SumbitElement:
+    class SubmitElement:
         def __init__(self, itype, name, value, use):
             self.itype = itype
             self.name = name
             self.value = value
             self.use = use
-        
         def __repr__(self):
             return str((self.itype, self.name, self.value, self.use))
         def __eq__(self,other):
@@ -113,23 +112,108 @@ class Form:
             self.value = value
             self.click = False
             self.override_value = ""
-            
         def __repr__(self):
             return str((self.itype, self.name, self.value, self.override_value))
-        
         def __eq__(self, other):
             p1 = (self.itype == other.itype)
             p2 = (self.name == other.name)
             p3 = (self.value == other.value)
             return (p1 and p2 and p3)
-        
         def __hash__(self):
             return hash(hash(self.itype) + hash(self.name) + hash(self.value))           
     
     class SelectElement:
-        pass
+        def __init__(self, itype, name):
+            self.itype = itype
+            self.name = name
+            self.options = []
+            self.selected = None
+            self.override_value = ""
+        def add_option(self, value):
+            self.options.append(value)
+        def __repr__(self):
+            return str ( (self.itype, self.name, self.options, self.selected, self.override_value))
+        def __eq__(self, other):
+            return (self.itype == other.itype) and (self.name == other.name)
+        def __hash__(self):
+            return hash(hash(self.itype) + hash(self.name))
+                      
+    class CheckboxElement:
+        def __init__(self, itype, name, value, checked):
+            self.itype = itype
+            self.name = name 
+            self.vaue = value
+            self.checked = checked
+            self.override_value = "" 
+        def __repr__(self):
+            return str((self.itype, self.name, self.value, self.checked))
+        def __eq__(self, other):
+            return (self.itype == other.itype) and (self.name == other.name) and (self.checked == other.checked)
+        def __hash__(self):
+            return hash(hash(self.itype) + hash(self.name) + hash(self.checked))
+        
+    def add_select(self, itype, name):
+        new_el = self.SelectElement(itype, name)
+        self.inputs[new_el] = new_el
+        return self.inputs[new_el]
+    
+    def add_input(self, itype, name, value, checked):
+        if itype == "radio":
+            new_el = self.RadioElement(itype, name, value)
+            key    = self.RadioElement(itype, name, value)
+        elif itype == "checkbox":
+            new_el = self.CheckboxElement(itype, name, value, checked)
+            key    = self.CheckboxElement(itype, name, value, None)
+        elif itype == "submit":
+            new_el = self.SubmitElement(itype, name, value, True)
+            key    = self.SubmitElement(itype, name, value, None)
+        else:
+            new_el = self.Element(itype, name, value)
+            key    = self.Element(itype, name, value)
             
+        self.input[key] = new_el
+        return self.inputs[key]
             
+    def add_button(self, itype, name, value):
+        if itype == "submit":
+            new_el = self.SubmitElement(itype, name, value, True)
+            key    = self.SubmitElement(itype, name, value, True)
+        else:
+            logging.error("Unknown button " + str((itype, name, value)))
+            new_el = self.Element(itype, name, value)
+            key    = self.Element(itype, name, value)
+    
+        self.inputs[key] = new_el
+        return self.inputs[key]
+
+    def add_textarea(self, name, value):
+        new_el = self.Element("textarea", name, value)
+        self.inputs[new_el] = new_el
+        return self.inputs[new_el]            
+    
+    def add_iframe_body(self, id):
+        new_el = self.Element("iframe", id, "")
+        self.inputs[new_el] = new_el
+        return self.inputs[new_el]
+    
+    def print(self):
+        print("[form", self.action, self.method)
+        for i in self.inputs:
+            print("--", i)
+        print("j")
+        
+    def __repr__(self):
+        s = "Form("+str(len(self.input))+", " + str(self.action) + ", " + str(self.method) + ")"
+        return s
+    
+    def __eq__(self, other):
+        return (    self.action == other.action
+                and self.method == other.method
+                and self.inputs == other.inputs)
+    
+    def __hash__(self):
+        return hash( hash(self.action) + hash(self.method) + hash(frozenset(self.inputs)))
+    
 class Crawler:
     def __init__(self,driver,url):
         self.driver = driver
