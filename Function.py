@@ -50,8 +50,16 @@ def dom_depth(edge):
 def find_state(driver, graph, edge):
     pass
 
-def rec_find_path(self):
-    pass
+def rec_find_path(graph, edge):
+    path = []
+    method = edge.value.method
+    parent = edge.parent
+    
+    if method == "get":
+        return path + [edge]
+    else:
+        return rec_find_path(graph, parent)+ [edge]
+    
 
 def edge_sort(edge):
     pass

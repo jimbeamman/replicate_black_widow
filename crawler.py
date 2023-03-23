@@ -63,6 +63,73 @@ class Request:
     def __hash__(self):
         return hash(self.url + self.method)
 
+class Form:
+    def __init__(self):
+        self.action = None
+        self.method = None
+        self.inputs = {}
+        
+    def attackable(self):
+        for input_el in self.inputs:
+            if not input_el.itype:
+                return True
+            if input_el.itype in ["text", "password", "textarea"]:
+                return True
+        return False
+    
+    class Element:
+        def __init__(self, itype, name, value):
+            self.itype = itype
+            self.name = name
+            self.value = value
+        def __repr__(self):
+            return str((self.itype, self.name, self.value))
+        def __eq__(self, other):
+            return (self.itype == other.itype) and (self.name == other.name)
+        def __hash__(self):
+            return hash(hash(self.itype)+ hash(self.name))
+        
+        
+    class SumbitElement:
+        def __init__(self, itype, name, value, use):
+            self.itype = itype
+            self.name = name
+            self.value = value
+            self.use = use
+        
+        def __repr__(self):
+            return str((self.itype, self.name, self.value, self.use))
+        def __eq__(self,other):
+            return ((self.itype == other.itype) and 
+                    (self.name == other.name) and 
+                    (self.use == other.use))
+        def __hash__(self):
+            return hash(hash(self.itype)+ hash(self.name) + hash(self.use))
+        
+    class RadioElement:
+        def __init__(self, itype, name, value):
+            self.itype = itype
+            self.name = name
+            self.value = value
+            self.click = False
+            self.override_value = ""
+            
+        def __repr__(self):
+            return str((self.itype, self.name, self.value, self.override_value))
+        
+        def __eq__(self, other):
+            p1 = (self.itype == other.itype)
+            p2 = (self.name == other.name)
+            p3 = (self.value == other.value)
+            return (p1 and p2 and p3)
+        
+        def __hash__(self):
+            return hash(hash(self.itype) + hash(self.name) + hash(self.value))           
+    
+    class SelectElement:
+        pass
+            
+            
 class Crawler:
     def __init__(self,driver,url):
         self.driver = driver
