@@ -24,31 +24,100 @@ import traceback
 import os 
 import pprint
 import json
+import operator
 
 import Crawler
 
 import logging
 
 def send(driver, cmd, params=()):
-    pass
+  resource = "/session/%s/chromium/send_command_and_get_result" % driver.session_id
+  url = driver.command_executor._url + resource
+  body = json.dumps({'cmd': cmd, 'params': params})
+  response = driver.command_executor._request('POST', url, body)
+  if "status" in response:
+    logging.error(response)
 
 def add_script(driver, script):
-    pass
+    send(driver, "Page.addScriptToEvaluateOnNewDocument", {"source": script})
 
 def xpath_row_to_cell(addr):
-    pass
+    parts = addr.split("/")
+    if(parts[-1][:2] == "tr"):
+        addr += "/td[1]"
+    return addr
 
 def remove_alert(driver):
-    pass
+    try: 
+        alert = driver.swith_to.alert
+        alert.dismiss()
+    except NoAlertPresentException:
+        pass
 
 def depth(edge):
-    pass
+    depth = 1
+    while edge.parent:
+        depth = depth + 1
+        edge = edge.parent
+    return depth
 
 def dom_depth(edge):
-    pass
+    depth = 1
+    while edge.parent and edge.value.method == "event":
+        depth = depth + 1
+        edge = edge.parent
+    return depth
 
 def find_state(driver, graph, edge):
-    pass
+    path = rec_find_path(graph, edge)
+    
+    for edge_in_path in path:
+        method = edge_in_path.value.method
+        method_data = edge_in_path.value.method_data
+        logging.info("find_state method %s" % method)
+        
+        if allow_edge(graph, edge_in_path):
+            if method == "get":
+                driver.get(edge_in_path.n2.value.url)
+            elif method == "form":
+                form = method_data
+                try:
+                    form_fill(driver, form)
+                except Exception as e:
+                    print(e)
+                    print(traceback.format_exc())
+                    logging.error(e)
+                    return False
+            elif method == "ui_form":
+                ui_form = method_data
+                try:
+                    ui_form_fill(driver, ui_form)
+                except Exception as e:
+                    print(e)
+                    print(traceback.format_exc())
+                    logging.error(e)
+                    return False
+            elif method == "event":
+                event = method_data
+                execute_event(driver, event)
+                remove_alert(driver)
+            elif method == "iframe":
+                enter_status = enter_iframe(driver, method_data)
+                if not enter_status:
+                    logging.error("could not enter iframe (%s)" % method_data)
+                    return False
+            elif method == "javascript":
+                js_code = edge_in_path.n2.value.url[11:]
+                try:
+                    driver.execute_script(js_code)
+                except Exception as e:
+                    print(e)
+                    print(traceback.format_exc())
+                    logging.error(e)
+                    return False
+            else:
+                raise Exception ( "Can't handle method (%s) in find_state" % method)
+    return True
 
 def rec_find_path(graph, edge):
     path = []
@@ -62,7 +131,10 @@ def rec_find_path(graph, edge):
     
 
 def edge_sort(edge):
-    pass
+    if edge.value[0] == "form":
+        return 0
+    else:
+        return 1
 
 def check_edge(driver, graph, edge):
     logging.info("Check edge: " + str(edge))
@@ -152,10 +224,23 @@ def form_fill_file(filename):
     pass
 
 def fuzzy_eq(form1, form2):
-    pass
+    if form1.action != form2.action:
+        return False
+    if form1.method != form2.method:
+        return False
+    for el1 in form1.inputs.keys():
+        if not (el1 in form2.inputs):
+            return False
+    return True
 
 def update_value_with_js(driver, web_element, new_value):
-    pass
+    try:
+        new_value = new_value.replace("'", "\\")
+        driver.execute_script("arguments[0].value = '"+new_value+"'", web_element)
+    except Exception as e:
+        logging.error(e)
+        logging.error(traceback.format_exc())
+        logging.error("failed to update with JS " + str(web_element))
 
 def form_fill(driver, target_form):
     pass
@@ -184,8 +269,26 @@ def find_login_form(driver, graph, early_state=False):
 def linkrank(link_edges, visited_list):
     pass
 
-def new_files(link_edges, visite_list):
-    pass
+def new_files(link_edges, visited_list):
+    tups = []
+    for edge in link_edges:
+        url = edge.n2.value.url
+        purl = urlparse(edge.n2.value.url)
+        path = purl.path
+
+        if path not in visited_list:
+            print("New file/path: ", path)
+        
+        tups.append((edge, (path in visited_list, path)))
+    
+    tups.sort(key = operator.itemgetter(1))
+    print(tups)
+    input("OK tups?")
+    
+    return [edge for (egge, _) in tups]
 
 def empty2node(s):
-    pass
+    if not s:
+        return None
+    else:
+        return s
