@@ -22,6 +22,7 @@ import traceback
 import os 
 import pprint
 import json
+import string
 
 from Function import *
 from extractors.Urls  import extract_urls
@@ -455,7 +456,6 @@ class Crawler:
                     logging.info("AGGRESSIVE: Ignore parameter " + str(parameter))
         return form
     
-    
     def get_payload(self):
         payload = []
         
@@ -513,22 +513,93 @@ class Crawler:
                     f.write(json.dumps(simple_entry) + "\n")
     
     def reflected_payload(self, lookup_id, location):
-        pass
+        if str(lookup_id) in self.attack_lookup_table:
+            self.attack_lookup_table[str(lookup_id)]["reflected"].add((self.driver.current_url, location))
+        else:
+            logging.warning("Could not find lookup_id %s, perhaps from an older attack session?" %lookup_id)
     
     def get_table_entry(self, lookup_id):
-        pass
+        if lookup_id in self.attack_lookup_table:
+            return self.attack_lookup_table[lookup_id]
+        if str(lookup_id) in self.attack_lookup_table:
+            return self.attack_lookup_table[str(lookup_id)]
+        
+        logging.warning("Could not find lookup_id %s " % lookup_id)
+        return None
     
     def execute_path(self, driver, path):
-        pass   
+        graph = self.graph
+        
+        for edge_in_path in path:
+            method = edge_in_path.value.method
+            method_data = edge_in_path.value.method_data
+            logging.info("find_state method %s" % method)
+            if method == "get":
+                if allow_edge(graph, edge_in_path):
+                    driver.get(edge_in_path.n2.value.url)
+                    self.inspect_attack(edge_in_path)
+                else:
+                    logging.warning("Not allowed to get: " + str(edge_in_path.n2.value.url))
+                    return False
+            elif method == "form":
+                form = method_data
+                try:
+                    fill_result = form_fill(driver, form)
+                    self.inspect_attack(edge_in_path)
+                    if not fill_result:
+                        logging.warning("Failed to fill form: " + str(form))
+                        return False
+                except Exception as e:
+                    print(e)
+                    print(traceback.format_exc())   
+                    logging.error(e)
+                    return False
+            elif method == "event":
+                event = method_data
+                execute_event(driver, event)
+                remove_alert(driver)
+                self.inspect_attack(edge_in_path)
+            elif method == "iframe":
+                logging.info("iframe, do find_state")
+                if not find_state(driver, graph, edge_in_path):
+                    logging.warning("Could not enter iframe" + str(edge_in_path))
+                    return False
+                self.inspect_attack(edge_in_path)
+            elif method == "javascript":
+                js_code = edge_in_path.n2.value.url[11:]
+                try:
+                    driver.execute_script(js_code)
+                    self.inspect_attack(edge_in_path)
+                except Exception as e:
+                    print(e)
+                    print(traceback.format_exc())
+                    logging.error(e)
+                    return False
+        return True 
  
     def get_tracker(self):
-        pass
-    
+        letters = string.ascii_lowercase
+        return ''.join(random.choice(letters) for i in range(8))
+          
     def use_tracker(self, tracker, vector_with_payload):
-        pass
+        self.io_graph[tracker] = {"injected": vector_with_payload,
+                                  "reflected": set()}
       
     def inspect_tracker(self, vector_edge):
-        pass
+        try:
+            body_text = self.driver.find_element(By.TAG_NAME, "body").text
+            
+            for tracker in self.io_graph:
+                if tracker in body_text:
+                    self.io_graph[tracker]['reflected'].add(vector_edge)
+                    print("Found from tracker! " + str(vector_edge))
+                    logging.info("Found from tracker! " + str(vector_edge))
+                    prev_edge = self.io_graph[tracker]['injected'][0]
+                    attackable = prev_edge.value.method_data.attackable()
+                    if attackable:
+                        self.path_attack_form(self.driver, prev_edge, vector_edge)
+        except:
+            print("Failed to find tracker in body_text")
     
     def track_form(self, driver, vector_edge):
         succesful_xss = set()
@@ -559,10 +630,86 @@ class Crawler:
         return succesful_xss       
 
     def path_attack_form(self, driver, vector_edge, check_edge=None):
-        pass
+        logging.info("ATTACKING VECTOR_EDGE: " + str(vector_edge))
+        successful_xss = set()
+        
+        graph = self.graph
+        path = rec_find_path(graph, vector_edge)
+        
+        logging.info ("PATH LENGTH: " + str(len(path)))
+        forms = []
+        for edge in path:
+            if edge.value.method=="form":
+                forms.append(edge.value.method_data)
+        
+        #safe fix form
+        payloads = self.get_payload()
+        for payload_template in payloads:
+            for form in forms:
+                form = self.fix_form(form, payload_template, True)
+                
+            execute_result = self.execute_path(driver, path)
+            if not execute_result:
+                logging.warning("Early break attack on " + str(vector_edge))
+                return False
+            if check_edge:
+                logging.info("check_edge defined from tracker " + str(check_edge))
+                follow_edge(driver, graph, check_edge)
+            inspect_result = self.inspect_attack(vector_edge)
+            if inspect_result:
+                print("Found one, quit..")
+                return successful_xss
+        
+        #Aggressive fix form
+        payloads = self.get_payload()
+        for payload_template in payloads:
+            for form in forms:
+                form = self.fix_form(form, payload_template, False)
+            self.execute_path(driver, path)
+            if not execute_result:
+                logging.warning("Early break attack on " + str(vector_edge))
+                return False
+            if check_edge:
+                logging.info("check_edge defined from tracker " + str(check_edge))
+                follow_edge(driver, graph, check_edge)
+            
+            inspect_result = self.inspect_attack(vector_edge)
+            if inspect_result:
+                print("Found one, quit..")
+                return successful_xss
+        
+        return successful_xss
     
     def attack_ui_form(self, driver, vector_edge):
-        pass
+        successful_xss = set()
+        graph = self.graph
+    
+        xss_payloads = self.get_payload()
+        for payload_template in xss_payloads:
+            (lookup_id, payload) = self.arm_payload(payload_template)
+            ui_form = vector_edge.value.method_data
+            
+            print("Attacking", ui_form, "with", payload)
+            
+            self.use_payload(lookup_id, (vector_edge,ui_form,payload))
+            
+            follow_edge(driver, self.graph, vector_edge)
+            
+            try:
+                for source in ui_form.sources:
+                    source['value'] = payload
+                ui_form_fill(driver, ui_form)
+            except:
+                print("PROBLEM ATTACKING ui form: ", ui_form)
+                logging.error("Can't attack event " + str(ui_form))
+                
+            inspect_result = self.inspect_attack(vector_edge)
+            if inspect_result:
+                successful_xss = successful_xss.union()
+                logging.info("Found injection, don't test all")
+                break
+            
+        return successful_xss
     
     def attack(self):  #attack 
         driver = self.driver
@@ -627,8 +774,119 @@ class Crawler:
         return successful_xss
     
     def next_unvisited_edge(self,driver,graph):
-        pass
+        user_url = open("queue.txt", "r").read()
+        if user_url:
+            print("User supplied url: ", user_url)
+            logging.info("Adding user form URLs " + user_url)
+            
+            req = Request(user_url, "get")
+            current_cookies = driver.get_cookies()
+            new_edge = graph.create_edge(self.root_req, req, CrawlEdge(req.method, None, current_cookies), graph.data['prev_edge'])
+            graph.add(req)
+            graph.connect(self.root_req, req, CrawlEdge(req.method, None, current_cookies), graph.data['prev_edge'])
+            
+            print(new_edge)
+            
+            open("queue.txt", "w+").write("")
+            open("run.flag", "w+").write("3")
+            
+            successful = follow_edge(driver, graph, new_edge)
+            if successful:
+                return new_edge
+            else:
+                logging.error("Could not load URL from user " + str(new_edge))
+                
+        list_to_use = [edge for edge in graph.edges if edge.value.method == "iframe" and edge.visited == False]
+        if list_to_use:
+            print("Following iframe edge")    
+            
+        if not self.debug_mode:
+            if self.early_gets < self.max_early_gets:
+                print("Looking for EARLY gets")
+                print(self.early_gets, "/", self.max_early_gets)
+                list_to_use = [edge for edge in graph.edges if edge.value.method == "get" and edge.visited == False]
+                list_to_use = linkrank(list_to_use, graph.data['urls'])               
 
+                if list_to_use:
+                    self.early_gets += 1
+                else:
+                    print("No get, trying something else")
+            
+            if self.early_gets == self.max_early_gets:
+                print("RESET")
+                for edge in graph.edges:
+                    graph.unvisit_edge(edge)
+                graph.data['urls'] = {}
+                graph.data['form_urls'] = {}
+                self.early_gets += 1
+                
+        if not list_to_use and 'prev_edge' in graph.data:
+            prev_edge = graph.data['prev_edge']
+            
+            if prev_edge.value.method == "form":
+                prev_form = prev_edge.value.method_data
+                
+                if not (prev_form in self.attacked_forms):
+                    print("prev was form, ATTACK")
+                    logging.info ("prev was form, ATTACK, " + str(prev_form))
+                    self.path_attack_form(driver, prev_edge)
+                    if not prev_form in self.attacked_forms:
+                        self.attacked_forms[prev_form] = 0 
+                    self.attacked_forms[prev_form] += 1
+                    
+                    print("prev was form, TRACK")
+                    logging.info("prev was form, TRACK")
+                    self.track_form(driver, prev_edge)
+                else:
+                    logging.warning("Form already done! " + str(prev_form) + str(prev_form.inputs))
+                    
+            elif prev_edge.value.method == "ui_form":
+                print("Prev was ui_form, ATTACK")
+                logging.info("Prev was ui_form, ATTACK")
+                self.attack_ui_form(driver, prev_edge)
+            else:
+                self.events_in_row = 0 
+        
+        if not list_to_use:
+            random_int = random.randint(0,100)
+            if not list_to_use:
+                if random_int >= 0 and random_int < 50:
+                    print("Looking for form")
+                    list_to_use = [edge for edge in graph.edges if edge.value.method == "form" and edge.visited == False]
+                elif random_int >= 50 and random_int < 80:
+                    print("Looking for get")
+                    list_to_use = [edge for edge in graph.edges if edge.value.method == "get" and edge.visited == False]
+                    list_to_use = linkrank(list_to_use, graph.data['urls'])
+                else:
+                    print("Looking for event")
+                    print("--Clicks")
+                    list_to_use = [edge for edge in graph.edges if edge.value.method == "event" and ("click" in edge.value.method_data.event) and edge.visited == False]
+                    if not list_to_use:
+                        print("--No clicks found, check all")
+                        list_to_use = [edge for edge in graph.edges if edge.value.method == "event" and edge.visited == False ]
+                
+        if not list_to_use:
+            logging.warning("Falling back to GET")       
+            list_to_use = [edge for edge in graph.edges if edge.value.method == "get" and edge.visited == False ]
+            list_to_use = linkrank(list_to_use, graph.data['urls'])
+            
+        
+        for edge in list_to_use:
+            if edge.visited == False:
+                if not check_edge(driver, graph, edge):
+                    logging.warning("Check_edge failed for " + str(edge))
+                    edge.visited = True
+                else:
+                    successful = follow_edge(driver, graph, edge)
+                    if successful:
+                        return edge
+        
+        if self.early_gets < self.max_early_gets:
+            self.early_gets = self.max_early_gets
+            return self.next_unvisited_edge(driver, graph)
+        
+        return None
+                
     def load_page(self, driver, graph):
         request = None
         edge = self.next_unvisited_edge(driver, graph)
@@ -764,8 +1022,6 @@ class Crawler:
         if found_command:
             open("command.txt", "w+").write("")
         return True
-    # def attack_sql(self):
-    #     print("")
 
 class Graph:
     # a directed graph
