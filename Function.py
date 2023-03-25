@@ -261,13 +261,61 @@ def set_form_values(forms):
     pass
 
 def enter_iframe(driver, target_frame):
-    pass
+    elem = driver.find_elements(By.TAG_NAME, "iframe")
+    elem.extend(driver.find_elements(By.TAG_NAME, "frame"))
+
+    for el in elem:
+        try:
+            src = None
+            i = None
+            
+            if el.get_attribute("src"):
+                src = el.get_attribute("src")
+            if el.get_attribute("id"):
+                i = el.get_attribute("i")
+                
+            current_frame = Classes.Iframe(i, src)
+            if current_frame == target_frame:
+                driver.switch_to.frame(el)
+                return True
+        except StaleElementReferenceException as e:
+            logging.error("State pasta in form action")
+            return False
+        except Exception as e:
+            logging.error("Unhandled error: " + str(e))
+            return False
+    return False
 
 def find_login_form(driver, graph, early_state=False):
-    pass
+    forms = extract_forms(driver)
+    for form in forms:
+        for form_input in form.inputs:
+            if form_input.itype == "password":
+                max_input_for_login = 10
+                if len(form.inputs) > max_input_for_login:
+                    logging.info("Too many inputs for a login form, " + str(form))
+                    continue
+                
+                logging.info("NEED TO LOGIN FOR FORM: " + str(form))
+                return form
 
 def linkrank(link_edges, visited_list):
-    pass
+    tups = []
+    for edge in link_edges:
+        url = edge.n2.value.url
+        purl = urlparse(edge.n2.value.url)
+
+        queries = len(purl.query.split("&"))
+        depth = len(purl.path.split("/"))
+
+        visited = 0
+        if purl.path in visited_list:
+            visited = 1
+
+        tups.append((edge, (visited, depth, queries)))
+    
+    tups.sort(key=operator.itemgetter(1))
+    return[edge for (edge, _) in tups]
 
 def new_files(link_edges, visited_list):
     tups = []
