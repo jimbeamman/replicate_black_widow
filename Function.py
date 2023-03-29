@@ -5,6 +5,10 @@
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.select import Select
+from selenium.webdriver.remote.webdriver import WebDriver
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import (StaleElementReferenceException,
                                        TimeoutException,
                                        UnexpectedAlertPresentException,
@@ -13,7 +17,6 @@ from selenium.common.exceptions import (StaleElementReferenceException,
                                        WebDriverException,
                                        InvalidElementStateException
                                        )
-
 
 from urllib.parse import urlparse, urljoin
 
@@ -27,7 +30,7 @@ import json
 import operator
 
 import Crawler
-
+from extractors.Forms import extract_forms, parse_form
 import logging
 
 def send(driver, cmd, params=()):
@@ -156,6 +159,23 @@ def check_edge(driver, graph, edge):
         else:
             logging.warning("Not allow to get %s" % str(edge.n2.value))
             return False
+    elif method == "form":
+        purl = urlparse(method_data.action)
+        if not purl.path in graph.data['form_urls']:
+            graph.data['form_urls'][purl.path] = 0
+        graph.data['form_urls'][purl.path] += 1
+        
+        if graph.data['form_urls'][purl.path] > 10:
+            logging.info("FROM ACTION URL (path) %s, visited more than 10 times, mark as done" % str(edge.n2.value.url))
+            return False
+        else:
+            return True
+    elif method == "event":
+        if dom_depth(edge) > 10:
+            logging.info("Dom depth (10) reached! Discard edge %s " % (str(edge)))
+            return False
+        else:
+            return True
     else:
         return True
     
@@ -167,6 +187,30 @@ def follow_edge(driver, graph, edge):
     #implement event, form, iframe
     if method == "get":
         driver.get(edge.n2.value.url)
+    elif method == "form":
+        logging.info("Form, do find_state")
+        if not find_state(driver, graph, edge):
+            logging.warning("Could not find state %s" % str(edge))
+            edge.visited = True
+            return None
+    elif method == "event":
+        logging.info("Event, do find_state")
+        if not find_state(driver, graph, edge):
+            logging.warning("Could not find state %s" % str(edge))
+            edge.visited = True
+            return None
+    elif method == "iframe":
+        logging.info("iframe, do find_state")
+        if not find_state(driver, graph, edge):
+            logging.warning("Could not find state %s" % str(edge))
+            edge.visited = True
+            return None
+    elif method == "javascript":
+        logging.info("Javascript, do find_state")
+        if not find_state(driver, graph, edge):
+            logging.warning("Could not find state %s" % str(edge))
+            edge.visited = True
+            return None 
     else:
         raise Exception("Can't handle method (%s) in next_unvisited_edge " %method)
     
@@ -186,6 +230,13 @@ def allow_edge(graph, edge):
     #implement others form, iframe, event
     if crawl_edge.method == "get":
         to_url = edge.n2.value.url
+    elif crawl_edge.method =="form":
+        to_url = crawl_edge.method_data.action
+    elif crawl_edge.method == "iframe":
+        to_url = crawl_edge.method_data.src
+    elif crawl_edge.method == "event":
+        ignore = ["onerror"]
+        return not (crawl_edge.method_data.event in ignore)
     else:
         logging.info("Unsure about method %s, will allow." % crawl_edge.method)
         return True
@@ -218,10 +269,86 @@ def allow_edge(graph, edge):
         return False
 
 def execute_event(driver, do):
-    pass
+    logging.info("We need to trigger [" + do.event + "] on " + do.addr)
+    do.addr = xpath_row_to_cell(do.addr)
+    try:
+        if do.event == "onclick" or do.event == "click":
+            web_element = driver.find_element(By.XPATH, do.addr)
+            logging.info("click on %s" %web_element)
+            
+            if web_element.is_displayed():
+                web_element.click()
+            else:
+                logging.warning("Trying to click on invisible element. Use JavaScript")
+                driver.execute_script("arguments[0].click()", web_element)
+        elif do.event == "ondblclick" or do.event == "dblclick":
+            web_element = driver.find_element(By.XPATH, do.addr)
+            logging.info("Double click on %s" %web_element)
+            ActionChains(driver).double_click(web_element).perform()
+        elif do.event == "onmouseout":
+            logging.info("Mouseout on %s" % driver.find_element(By.XPATH, do.addr))
+            el = driver.find_element(By.XPATH, do.addr)
+            body = driver.find_element(By.XPATH, "/html/body")
+            ActionChains(driver).move_to_element(el).perform()
+        elif do.event == "onmouseover":
+            logging.info("Mouseover on %s" % driver.find_element(By.XPATH, do.addr))
+            el = driver.find_element(By.XPATH, do.addr)
+            ActionChains(driver).move_to_element(el).perform()
+        elif do.event == "onmousedown":
+            logging.info("Click (mousedown) on %s" % driver.find_element(By.XPATH, do.addr))
+            driver.find_element(By.XPATH, do.addr)
+        elif do.event == "onmouseup":
+            logging.info("Mouseup on %s" % driver.find_element(By.XPATH, do.addr))
+            el = driver.find_element(By.XPATH, do.addr)
+            ActionChains(driver).move_to_element(el).release().perform()
+        elif do.event == "change" or do.event == "onchange":
+            el = driver.find_element(By.XPATH, do.addr)
+            logging.info("Change %s" % driver.find_element(By.XPATH, do.addr))
+            if el.tag_name == "select":
+                opts = el.find_elements(By.TAG_NAME, "option")            
+                for opt in opts:
+                    try:
+                        opt.click()
+                    except UnexpectedAlertPresentException:
+                        print("Alert detected")
+                        alert = driver.switch_to.alert
+                        alert.dismiss()
+            else:
+                el = driver.find_element(By.XPATH, do.addr)
+                el.clear()
+                el.send_keys("jAEkPot")
+                el.send_keys(Keys.RETURN)
+        elif do.event == "input" or do.event == "oninput":
+            el = driver.find_element(By.XPATH, do.addr)
+            el.clear()
+            el.send_keys("jAEkPot")
+            el.send_keys(Keys.RETURN)
+            logging.info("oniput %s" % driver.find_element(By.XPATH, do.addr))
+            
+        elif do.event == "compositionstart":
+            el = driver.find_element(By.XPATH, do.addr)
+            el.clear()
+            el.send_keys("jAEkPot")
+            el.send_keys(Keys.RETURN)
+            logging.info("Composition Start %s" % driver.find_element(By.XPATH, do.addr))
+        
+        else:
+            logging.warning("Warning Unhandled event %s " %str(do.event))
+    except Exception as e:
+        print ("Error", do)
+        print (e)
+            
+def form_fill_file(filename): 
+    dirname = os.path.dirname(__file__)
+    path = os.path.join(dirname, 'form_files', filename)
+    
+    if filename != "jaekpot.jpg":
+        path = os.path.join(dirname, 'form_files', 'dynamics', filename)
+        dynamic_file = open(path, "w+")
+        dynamic_file.write(filename)
+        dynamic_file.close()
+    return path
 
-def form_fill_file(filename):
-    pass
 
 def fuzzy_eq(form1, form2):
     if form1.action != form2.action:
@@ -243,7 +370,67 @@ def update_value_with_js(driver, web_element, new_value):
         logging.error("failed to update with JS " + str(web_element))
 
 def form_fill(driver, target_form):
-    pass
+    logging.debug("Filling " + str(target_form))
+    
+    try:
+        alert = driver.switch_to.alert
+        alertText = alert.text
+        logging.info("Remove alert: " + alertText)
+        alert.accept()
+    except:
+        logging.info("No alert removed (probably due to there not being any)")
+        pass
+    
+    elem = driver.find_elements(By.TAG_NAME, "form")
+    for el in elem:
+        current_form = parse_form(el,driver)
+        submit_buttons = []
+        
+        if(not fuzzy_eq(current_form, target_form)):
+            continue                
+        
+        inputs = el.find_elements(By.TAG_NAME, "input")
+        if not inputs:
+            inputs = []
+            logging.warning("No inputs founds, falling back to JavaScript")
+            resps = driver.execute_script("return get_forms()")
+            js_forms = json.loads(resps)
+            for js_form in js_forms:
+                current_form = Crawler.Form()
+                current_form.method = js_form['method'];
+                current_form.action = js_form['action'];
+                
+                if(current_form.action == target_form.action and current_form.method == target_form.method):
+                    for js_el in js_form['elements']:
+                        web_el = driver.find_element(By.XPATH, js_el['xpath'])
+                        inputs.append(web_el)
+                    break
+        
+        buttons = el.find_elements(By.TAG_NAME, "button")
+        inputs.extend(buttons)
+        
+        for iel in inputs:
+            try:
+                iel_type = empty2node(iel.get_attribute("type"))
+                iel_name = empty2node(iel.get_attribute("name"))
+                iel_value = empty2node(iel.get_attribute("value"))
+                if iel.get_attribute("type") == "radio":
+                    form_iel = Crawler.Form.RadioElement(
+                                                        iel_type,
+                                                        iel_name,
+                                                        iel_value
+                    )
+                else:
+                    logging.warning("[Inputs] could NOT FIND " + str(form_iel))
+                    logging.warning("--" + str(target_form.inputs))
+                logging.info("Filing in input " + iel.get_attribute("name"))
+            
+            except Exception as e:
+                logging.error("Could not fill in form")
+                logging.error(e)
+                logging.error(traceback.format_exc())
+                
+                        
 
 def ui_form_fill(driver, target_form):
     pass
@@ -274,7 +461,7 @@ def enter_iframe(driver, target_frame):
             if el.get_attribute("id"):
                 i = el.get_attribute("i")
                 
-            current_frame = Classes.Iframe(i, src)
+            current_frame = Crawler.Iframe(i, src)
             if current_frame == target_frame:
                 driver.switch_to.frame(el)
                 return True

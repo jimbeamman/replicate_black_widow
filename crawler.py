@@ -306,7 +306,7 @@ class Crawler:
                 except Exception as e:
                     still_work = n_gets
                     print(e)
-                    print(traceback.format_exec()) 
+                    print(traceback.format_exc()) 
                     logging.error(e)
                     logging.error("Top level error while crawling")
                 #Enter to continute
@@ -736,15 +736,15 @@ class Crawler:
             print("Progress (get): ", get_c, "/", len(gets_to_attack))
             if vector_type == "get":
                 get_xss = self.attack_get(driver, vector) #attack xss get
-                seccessful_xss = seccessful_xss.union(get_xss)
+                successful_xss = successful_xss.union(get_xss)
             get_c += 1
         
         #quick check for store = reduce false positive? 
         quick_xss = self.quick_check_xss(driver, vectors)
-        seccessful_xss = successful_xss.union(quick_xss)
+        successful_xss = successful_xss.union(quick_xss)
         
         print("-"*50)
-        print("Successful attacks: ", len(seccessful_xss))
+        print("Successful attacks: ", len(successful_xss))
         print("-"*50)
         
         f = open("successful_xss.txt", "w")
@@ -1091,7 +1091,7 @@ class Graph:
     def visit_node(self, value):
         node = self.Node(value)
         if node in self.nodes:
-            target = self.node[self.nodes.index(node)]
+            target = self.Node[self.nodes.index(node)]
             target.visited = True
             return True
         return False
