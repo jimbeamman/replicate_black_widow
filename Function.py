@@ -15,7 +15,8 @@ from selenium.common.exceptions import (StaleElementReferenceException,
                                        NoSuchFrameException,
                                        NoAlertPresentException,
                                        WebDriverException,
-                                       InvalidElementStateException
+                                       InvalidElementStateException,
+                                       ElementNotVisibleException
                                        )
 
 from urllib.parse import urlparse, urljoin
@@ -28,6 +29,7 @@ import os
 import pprint
 import json
 import operator
+import copy
 
 import Crawler
 from extractors.Forms import extract_forms, parse_form
@@ -419,7 +421,84 @@ def form_fill(driver, target_form):
                                                         iel_type,
                                                         iel_name,
                                                         iel_value
-                    )
+                                                        )
+                elif iel.get_attribute("type") == "checkbox":
+                    form_iel = Crawler.Form.CheckboxElement(
+                                                        iel_type,
+                                                        iel_name,
+                                                        iel_value,
+                                                        None)
+                elif iel.get_attribute("type") == "submit":
+                    form_iel = Crawler.Form.SubmitElement(
+                                                        iel_type,
+                                                        iel_name,
+                                                        iel_value,
+                                                        None)
+                else:
+                    form_iel = Crawler.Form.Element(
+                                                    iel_type,
+                                                    iel_name,
+                                                    iel_value,
+                                                    )
+                    logging.warning("Default handling for %s " % str(form_iel))
+                                    
+                if form_iel in target_form.inputs:
+                    i = target_form.inputs[form_iel]
+                    
+                    if iel.get_attribute("type") == "submit" or iel.get_attribute("type") == "image":
+                        submit_buttons.append((iel, i))
+                    elif iel.get_attribute("type") == "file":
+                        if "/" in i.value:
+                            logging.info("Cannot have slash in filename")
+                        else:
+                            try:
+                                iel.send_keys( form_fill_file(i.value))
+                            except Exception as e:
+                                logging.warning("[inputs] Failed to upload file " + str(i.value) + " in " + str(form_iel))
+                    elif iel.get_attribute("type") == "radio":
+                        if i.override_value:
+                            update_value_with_js(driver, iel, i.override_value)
+                        if i.click:
+                            iel.click()
+                    elif iel.get_attribute("type") == "checkbox":
+                        if i.override_value:
+                            update_value_with_js(driver, iel, i.override_value)
+                        if i.checked and not iel.get_attribute("checked"):
+                            iel.click()
+                    elif iel.get_attribute("type") == "hidden":
+                        print("IGNORE HIDDEN")
+                    elif iel.get_attribute("type") in ["text", "email", "url"]:
+                        if iel.get_attribute("maxlength"):
+                            try:
+                                driver.execute_script("arguments[0].removeAttribute('maxlength')", iel)
+                            except Exception as e:
+                                logging.warning("[inputs] failed to change maxlength " + str(form_iel))
+                        try:
+                            iel.clear()
+                            iel.send_keys(i.value)
+                        except Exception as e:
+                            logging.warning("[inputs] failed to send keys to " + str(form_iel) + " Trying javascript" )
+                            try:
+                                driver.execute_script("arguments[0].value = '"+str(i.value)+"'", iel)
+                            except Exception as e:
+                                logging.error(e)
+                                logging.error(traceback.format_exc())
+                                logging.error("[inputs] also faild with JS " + str(form_iel))
+                    elif iel.get_attribute("type") == "password":
+                        try:
+                            iel.clear()
+                            iel.send_keys(i.value)
+                        except Exception as e:
+                            logging.warning("[inputs] failed to send keys to " + str(form_iel) + "Trying javascript" )
+                            update_value_with_js(driver, iel, i.value)
+                    else:
+                        logging.warning("[inputs] using default clear/send_keys for " +str(form_iel))
+                        try:
+                            iel.clear()
+                            iel.send_keys(i.value)
+                        except Exception as e:
+                            logging.warning("[inputs] failed to send keys to " + str(form_iel) + " Trying jvascript")
+                            update_value_with_js(driver, iel, i.value)                 
                 else:
                     logging.warning("[Inputs] could NOT FIND " + str(form_iel))
                     logging.warning("--" + str(target_form.inputs))
@@ -429,23 +508,265 @@ def form_fill(driver, target_form):
                 logging.error("Could not fill in form")
                 logging.error(e)
                 logging.error(traceback.format_exc())
+        
+        # <select>
+        selects = el.find_elements(By.TAG_NAME,"select")
+        for select in selects:
+            form_select = Crawler.Form.SelectElement( "select", select.get_attribute("name") )
+            if form_select in target_form.inputs:
+                i = target_form.inputs[form_select]
+                selenium_select = Select( select )
+                options = selenium_select.options
+                if i.override_value and options:
+                    update_value_with_js(driver, options[0], i.override_value)
+                else:
+                    for option in options:
+                        if option.get_attribute("value") == i.selected:
+                            try:
+                                option.click()
+                            except Exception as e:
+                                logging.error("Could not click on " + str(form_select) + ", trying JS")
+                                update_value_with_js(driver, select, i.selected)
+                            break
+            else:
+                logging.warning("[selects] could NOT FIND " + str(form_select) )
+
+         # <textarea>
+        textareas = el.find_elements(By.TAG_NAME,"textarea")
+        for ta in textareas:
+            form_ta = Crawler.Form.Element( ta.get_attribute("type"),
+                                            ta.get_attribute("name"),
+                                            ta.get_attribute("value") )
+            if form_ta in target_form.inputs:
+                i = target_form.inputs[form_ta]
+                try:
+                    ta.clear()
+                    ta.send_keys(i.value)
+                except Exception as e:
+                    logging.info("[inputs] faild to send keys to " + str(form_iel) + " Trying javascript" )
+                    update_value_with_js(driver, ta, i.value)
+            else:
+                logging.warning("[textareas] could NOT FIND " + str(form_ta) )                       
+
+        # <iframes>
+        iframes = el.find_elements(By.TAG_NAME,"iframe")
+        for iframe in iframes:
+            form_iframe = Crawler.Form.Element("iframe", iframe.get_attribute("id"), "")
+
+
+            if form_iframe in target_form.inputs:
+                i = target_form.inputs[form_iframe]
+                try:
+                    iframe_id =  i.name
+                    driver.switch_to.frame(iframe_id)
+                    iframe_body = driver.find_element(By.TAG_NAME,"body")
+                    if(iframe_body.get_attribute("contenteditable") == "true"):
+                        iframe_body.clear()
+                        iframe_body.send_keys(i.value)
+                    else:
+                        logging.error("Body not contenteditable, was during parse")
+
+                    driver.switch_to.default_content();
+
+
+                except InvalidElementStateException as e:
+                    logging.error("Could not clear " + str(form_ta))
+                    logging.error(e)
+            else:
+                logging.warning("[iframes] could NOT FIND " + str(form_ta) )
                 
-                        
+        # submit
+        if submit_buttons:
+            logging.info("form_fill Clicking on submit button")
+
+            for submit_button in submit_buttons:
+                (selenium_submit, form_submit) = submit_button
+
+                if form_submit.use:
+                    try:
+                        selenium_submit.click()
+                        break
+                    except ElementNotVisibleException as e:
+                        logging.warning("Cannot click on invisible submit button: " + str(submit_button) + str(target_form) + " trying JavaScript click")
+                        logging.info("form_fill Javascript submission of form after failed submit button click")
+
+                        driver.execute_script("arguments[0].click()", selenium_submit)
+
+                        # Also try submitting the full form, shouldn't be needed
+                        try:
+                            el.submit()
+                        except Exception as e:
+                            logging.info("Could not submit form, could be good!")
+
+                    except Exception as e:
+                        logging.warning("Cannot click on submit button: " + str(submit_button) + str(target_form))
+                        logging.info("form_fill Javascript submission of form after failed submit button click")
+                        el.submit()
+
+                # Some forms show an alert with a confirmation
+                try:
+                    alert = driver.switch_to.alert
+                    alertText = alert.text
+                    logging.info("Removed alert: " +  alertText)
+                    alert.accept();
+                except:
+                    logging.info("No alert removed (probably due to there not being any)")
+                    pass
+        else:
+            logging.info("form_fill Javascript submission of form")
+            el.submit()
+
+        # Check if submission caused an "are you sure" alert
+        try:
+            alert = driver.switch_to.alert
+            alertText = alert.text
+            logging.info("Removed alert: " +  alertText)
+            alert.accept();
+        except:
+            logging.info("No alert removed (probably due to there not being any)")
+
+        # End of form fill if everything went well
+        return True
+
+    logging.error("error no form found (url:%s, form:%s)" % (driver.current_url, target_form) )
+    return False
+    #raise Exception("error no form found (url:%s, form:%s)" % (driver.current_url, target_form) )
+    
+    
 
 def ui_form_fill(driver, target_form):
-    pass
+    logging.debug("Filling ui_form "+ str(target_form))
+    try:
+        alert = driver.switch_to.alert
+        alertText = alert.text
+        logging.info("Remove alert: " + alertText)
+        alert.accept();
+    except:
+        logging.info("No alert removed (probably due to there not being any)")
+        pass
+    
+    for source in target_form.sources:
+        web_element = driver.find_elements(By.XPATH,source['xpath'])
+        
+        if web_element.get_attribute("maxlength"):
+            try:
+                driver.execute_script("arguments[0].removeAttribute('maxlength')", web_element)
+            except Exception as e:
+                logging.warning("[inputs] failed to change maxlength " + str(web_element))
+                
+        input_value = source['value']
+        try:
+            web_element.clear()
+            web_element.send_keys(input_value)
+        except Exception as e:
+            logging.warning("[inputs] failed to send keys to " + str(input_value) + " Trying javascritp")
+            try:
+                driver.execute_script("arguments[0].value = '"+input_value+"'", web_element)
+            except Exception as e:
+                logging.error(e)
+                logging.error(traceback.format_exc())
+                logging.error("[inputs] also failed with JS " + str(web_element))
+    
+    submit_element = driver.find_element(By.XPATH,target_form.submit)
+    submit_element.click()
 
 def set_standard_values(old_form):
-    pass
+    form = copy.deepcopy(old_form)
+    first_radio = True
+
+    for form_el in form.inputs.values():
+        if form_el.itype == "file":
+            form_el.value = "jaekpot.jpg"
+        elif form_el.itype == "radio":
+            if first_radio:
+                form_el.click = True
+                first_radio = False
+            # else dont change the value
+        elif form_el.itype == "checkbox":
+            # Just activate all checkboxes
+            form_el.checked = True
+        elif form_el.itype == "submit" or form_el.itype == "image":
+            form_el.use = False
+        elif form_el.itype == "select":
+            if form_el.options:
+                form_el.selected = form_el.options[0]
+            else:
+                logging.warning( str(form_el) + " has no options" )
+        elif form_el.itype == "text":
+            if form_el.value and form_el.value.isdigit():
+                form_el.value = 1
+            elif form_el.name == "email":
+                form_el.value = "jaekpot@localhost.com"
+            else:
+                form_el.value = "jAEkPot"
+        elif form_el.itype == "textarea":
+            form_el.value = "jAEkPot"
+        elif form_el.itype == "email":
+            form_el.value = "jaekpot@localhost.com"
+        elif form_el.itype == "hidden":
+            pass
+        elif form_el.itype == "password":
+            form_el.value = "jAEkPot"
+            #form_el.value = "jAEkPot1"
+        elif form_el.itype == "number":
+            # TODO Look at min/max/step/maxlength to pick valid numbers
+            form_el.value = "1"
+        elif form_el.itype == "iframe":
+            form_el.value = "jAEkPot"
+        elif form_el.itype == "button":
+            pass
+        else:
+            logging.warning( str(form_el) + " was handled by default")
+            form_el.value = "jAEkPot"
+
+    return form
 
 def set_submits(forms):
-    pass
+    new_forms = set()
+    for form in forms:
+        submits = set()
+        for form_el in form.inputs.values():
+            if form_el.itype == "submit" or form_el.itype == "image":
+                submits.add(form_el)
+                
+        if len(submits) > 1:
+            for submit in submits:
+                new_form = copy.deepcopy(form)
+                for new_form_el in new_form.inputs.values():
+                    if new_form_el.itype == "submit" and new_form_el == submit:
+                        new_form_el.use = True
+                new_forms.add(new_form)
+        elif len(submits) == 1:
+            submits.pop().use = True
+            new_forms.add(form)
+            
+    return new_forms
 
 def set_checkboxes(forms):
-    pass
+    new_forms = set()
+    for form in forms:
+        new_form = copy.deepcopy(form)
+        for new_form_el in new_form.inputs.values():
+            if new_form_el.itype == "checkbox":
+                new_form_el.checked = False
+                new_forms.add(form)
+                new_forms.add(new_form)
+    return new_forms
 
 def set_form_values(forms):
-    pass
+    logging.info("set_form_values got " + str(len(forms)))
+    new_forms = set()
+    for old_form in forms:
+        new_forms.add(set_standard_values(old_form))
+        
+    new_forms = set_submits(new_forms)
+    new_checkbox_forms = set_checkboxes(new_forms)
+    for checkbox_form in new_checkbox_forms:
+        new_forms.add(checkbox_form)
+        
+    logging.info("set_form_values returned " + str(len(new_forms)))
+    
+    return new_forms
 
 def enter_iframe(driver, target_frame):
     elem = driver.find_elements(By.TAG_NAME, "iframe")
