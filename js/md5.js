@@ -1,3 +1,6 @@
+// All codebases are from the original work of Black Widow: Blackbox Data-driven Web Scanning by Benjamin Eriksson, Giancarlo Pellegrino†, and Andrei Sabelfeld
+// Source: https://github.com/SecuringWeb/BlackWidow retrived in March, 2023
+
 function md5cycle(x, k) {
 var a = x[0], b = x[1], c = x[2], d = x[3];
 

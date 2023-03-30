@@ -214,7 +214,43 @@ class Form:
     
     def __hash__(self):
         return hash( hash(self.action) + hash(self.method) + hash(frozenset(self.inputs)))
+
+class Event:
+    def __init__(self, fid, event, i, tag, addr, c):
+        self.function_id = fid
+        self.event = event
+        self.id = i
+        self.tag = tag
+        self.addr = addr
+        self.event_class = c
     
+    def __repr__(self):
+        s = "Event("+str(self.event)+", " + self.addr + ")"
+        return s
+    
+    def __eq__(self, other):
+        return (self.function_id == other.function_id and 
+                self.id == other.id and 
+                self.tag == other.tag and 
+                self.addr == other.addr)
+        
+    def __hash__(self):
+        if self.tag == {}:
+            logging.warning("Strange tag... %s " % str(self.tag))
+            self.tag = ""
+        
+        return hash( hash(self.function_id) +
+                     hash(self.id) + 
+                     hash(self.tag) +
+                     hash(self.addr))    
+        
+class Iframe:
+    pass
+
+class Ui_form:
+    pass
+
+
 class Crawler:
     def __init__(self,driver,url):
         self.driver = driver
