@@ -54,7 +54,7 @@ def xpath_row_to_cell(addr):
 
 def remove_alert(driver):
     try: 
-        alert = driver.swith_to.alert
+        alert = driver.switch_to.alert
         alert.dismiss()
     except NoAlertPresentException:
         pass

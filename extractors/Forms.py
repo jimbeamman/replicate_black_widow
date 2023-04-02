@@ -150,7 +150,7 @@ def parse_form(el, driver):
     return form
 
 def extract_forms(driver):
-    elem = driver.find_elments(By.TAG_NAME, "form")
+    elem = driver.find_elements(By.TAG_NAME, "form")
     
     forms = set()
     for el in elem:

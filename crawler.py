@@ -148,7 +148,7 @@ class Form:
         def __init__(self, itype, name, value, checked):
             self.itype = itype
             self.name = name 
-            self.vaue = value
+            self.value = value
             self.checked = checked
             self.override_value = "" 
         def __repr__(self):
@@ -177,7 +177,7 @@ class Form:
             new_el = self.Element(itype, name, value)
             key    = self.Element(itype, name, value)
             
-        self.input[key] = new_el
+        self.inputs[key] = new_el
         return self.inputs[key]
             
     def add_button(self, itype, name, value):
@@ -209,7 +209,7 @@ class Form:
         print("j")
         
     def __repr__(self):
-        s = "Form("+str(len(self.input))+", " + str(self.action) + ", " + str(self.method) + ")"
+        s = "Form("+str(len(self.inputs))+", " + str(self.action) + ", " + str(self.method) + ")"
         return s
     
     def __eq__(self, other):
@@ -613,7 +613,7 @@ class Crawler:
     
     def arm_payload(self, payload_template):
         lookup_id = str(random.randint(1,100000000))
-        payload = payload_template.raplace("%RAND", lookup_id)
+        payload = payload_template.replace("%RAND", lookup_id)
         
         return (lookup_id, payload)
     
@@ -1158,7 +1158,7 @@ class Crawler:
         iframes = extract_iframes(driver)
         
         try: 
-            wait_json = driver.execute_scipt("return JSON.stringify(need_to_wait)")
+            wait_json = driver.execute_script("return JSON.stringify(need_to_wait)")
         except UnexpectedAlertPresentException:
             logging.warning("Alert detected")
             alert = driver.switch_to.alert
@@ -1319,7 +1319,7 @@ class Graph:
     def visit_node(self, value):
         node = self.Node(value)
         if node in self.nodes:
-            target = self.Node[self.nodes.index(node)]
+            target = self.nodes[self.nodes.index(node)]
             target.visited = True
             return True
         return False
