@@ -26,6 +26,11 @@ import string
 
 from Function import *
 from extractors.Urls  import extract_urls
+from extractors.Events import extract_events
+from extractors.Forms import extract_forms, parse_form
+from extractors.Urls import extract_urls
+from extractors.Iframes import extract_iframes
+from extractors.Ui_forms import extract_ui_forms
 
 import logging
 log_file = os.path.join(os.getcwd(), 'logs', 'crawl-'+str(time.time())+'.log')
@@ -245,10 +250,45 @@ class Event:
                      hash(self.addr))    
         
 class Iframe:
-    pass
+    def __init__(self, i, src):
+        self.id = i
+        self.src = src
+    
+    def __repr__(self):
+        id_str = ""
+        src_str = ""
+        if self.id:
+            id_str = "id=" + str(self.id)
+        if self.src:
+            src_str = "src=" + str(self.src)
+            
+        s = "Iframe(" + id_str + "," + src_str + ")"
+        return s
+    
+    def __eq__(self, other):
+        return (self.id == other.id and 
+                self.src == other.src)
+    
+    def __hash__(self):
+        return hash(hash(self.id) + 
+                    hash(self.src))
 
 class Ui_form:
-    pass
+    def __init__(self, sources, submit):
+        self.sources = sources
+        self.submit = submit
+    
+    def __repr__(self):
+        return "Ui_form(" + str(self.sources) + ", " + str(self.submit) + ")"
+    
+    def __eq__(self, other):
+        self_l = set([source['xpath'] for source in self.sources ])
+        other_l = set([source['xpath'] for source in other.sources])
+        
+        return self_l == other_l
+    
+    def __hash__(self):
+        return hash (frozenset ([source['xpath'] for source in self.sources]))
 
 
 class Crawler:
@@ -327,14 +367,23 @@ class Crawler:
                 
                 #attack only get need more form + event   
                 n_gets = 0
+                n_forms = 0
+                n_events = 0
+                
                 for edge in self.graph.edges:
                     if edge.visited == False:
                         if edge.value.method == "get":
                             n_gets += 1
+                        elif edge.value.method == "form":
+                            n_forms += 1
+                        elif edge.value.method == "event":
+                            n_events += 1
+                            
+                            
                 print()
                 print("--------------")
-                print("GET")  
-                print(str(n_gets).ljust(7))
+                print("GETS   | FROMS  | EVENTS ")
+                print(str(n_gets).ljust(7), "|", str(n_forms).ljust(6), "|", n_events)
                 print("--------------")
                 
                 try:
@@ -359,7 +408,7 @@ class Crawler:
         vectors = []
         added = set()
         
-        exploit_events = ["input", "oninput", "onchange", "compositionstart"]
+        exploitable_events = ["input", "oninput", "onchange", "compositionstart"]
         
         #GET
         for node in self.graph.nodes:
@@ -369,7 +418,21 @@ class Crawler:
                     vectors.append( ("get", node.value.url))
                     added.add(node.value.url)
         #implement FORMS and EVENTS 
-        
+        for edge in self.graph.edges:
+            method = edge.value.method
+            method_data = edge.value.method_data
+            if method == "form":
+                vectors.append( ("form", edge) )
+            if method == "event":
+                event = method_data
+
+                # check both for event and onevent, e.g input and oninput
+                print("ATTACK EVENT",event)
+                if ((event.event in exploitable_events) or
+                    ("on" + event.event in exploitable_events)):
+                    if not event in added:
+                        vectors.append( ("event", edge) )
+                        added.add(event)
         return vectors
     
     #implement these funcitons 
@@ -401,7 +464,47 @@ class Crawler:
         return successful_xss
     
     def attack_event(self, driver, vector_edge):
-        pass
+        print("-"*50)
+        successful_xss = set()
+        
+        xss_payloads = self.get_payload()
+        
+        print("Will try to attack vector", vector_edge)
+        for payload_template in xss_payloads:
+            (lookup_id, payload) = self.arm_payload(payload_template)
+            
+            event = vector_edge.value.method_data
+            
+            self.use_payload(lookup_id, (vector_edge, event.event, payload))
+            
+            follow_edge(driver, self.graph, vector_edge)
+            
+            try:
+                if event.event == "oninput" or event.event == "input":
+                    el = driver.find_element(By.XPATH, event.addr)
+                    el.clear()
+                    el.send_keys(payload)
+                    el.send_keys(Keys.RETURN)
+                    logging.info("oninput %s" % driver.find_element(By.XPATH,event.addr))
+                if event.event == "oncompositionstart" or event.event == "compositionstart":
+                    el = driver.find_element(By.XPATH, event.addr)
+                    el.click()
+                    el.clear()
+                    el.send_keys(payload)
+                    el.send_keys(Keys.RETURN)
+                    logging.info("oncompositionstart %s" % driver.find_element(By.XPATH, event.addr))    
+                else:
+                    logging.error("Could not attack event.event %s" % event.event)
+            except:
+                print("PROBLEM ATTACKING EVENT: ", event)
+                logging.error("Can't attack event " + str(event))
+                
+            inspect_result = self.inspect_attack(vector_edge)
+            if inspect_result:
+                successful_xss = successful_xss.union()
+                logging.info("Found injectin, don't test all")
+                break
+        return successful_xss
     
     def attack_get(self, driver, vector):
         
@@ -547,6 +650,7 @@ class Crawler:
                                     'injected': str(attack_entry['injected'])}
                     
                     f.write(json.dumps(simple_entry) + "\n")
+        return successful_xss
     
     def reflected_payload(self, lookup_id, location):
         if str(lookup_id) in self.attack_lookup_table:
@@ -765,7 +869,32 @@ class Crawler:
                         self.track_form(driver, edge)
         
         #attack XSS
-        #implement SQL?
+        #implement SQL?xx
+        events_to_attack = [ (vector_type,vector) for (vector_type, vector) in vectors if vector_type == "event" ]
+        event_c = 0
+        for (vector_type,vector) in events_to_attack:
+            print("Progress (events): ", event_c , "/", len(events_to_attack))
+            if vector_type == "event":
+                event_xss = self.attack_event(driver, vector)
+                successful_xss = successful_xss.union(event_xss)
+            event_c += 1
+
+        forms_to_attack = [ (vector_type,vector) for (vector_type, vector) in vectors if vector_type == "form" ]
+        form_c = 0
+        for (vector_type,vector) in forms_to_attack:
+            print("Progress (forms): ", form_c , "/", len(forms_to_attack))
+            if vector_type == "form":
+                form_xss = self.path_attack_form(driver, vector)
+
+                # Save to file
+                f = open("form_xss.txt", "a+")
+                for xss in form_xss:
+                    if xss in self.attack_lookup_table:
+                        f.write(str(self.attack_lookup_table)  + "\n")
+
+                successful_xss = successful_xss.union(form_xss)
+            form_c += 1   
+
         gets_to_attack = [(vector_type, vector) for (vector_type, vector) in vectors if vector_type == "get" ]
         get_c = 0
         for (vector_type, vector) in gets_to_attack:
@@ -916,6 +1045,16 @@ class Crawler:
                     successful = follow_edge(driver, graph, edge)
                     if successful:
                         return edge
+                    
+        for edge in graph.edges:
+            if edge.visited == False:
+                if not check_edge(driver, graph, edge):
+                    logging.warning("Check_edge failed for " + str(edge))
+                    edge.visited = True
+                else:
+                    successful = follow_edge(driver, graph, edge)
+                    if successful:
+                        return edge
         
         if self.early_gets < self.max_early_gets:
             self.early_gets = self.max_early_gets
@@ -951,6 +1090,7 @@ class Crawler:
             for tracker in self.io_graph:
                 if self.io_graph[tracker]['reflected']:
                     print("EDGE FROM ", self.io_graph[tracker]['injected'], "to", self.io_graph[tracker]['reflected'])
+            
             return False
         
         (edge, request) = todo
@@ -985,7 +1125,7 @@ class Crawler:
         
         #timeout
         try:
-            resps = driver.execute_scipt("return JSON.stringify(timeouts)")
+            resps = driver.execute_script("return JSON.stringify(timeouts)")
             todo = json.loads(resps)
             for t in todo:
                 try:
@@ -1011,6 +1151,11 @@ class Crawler:
                 
         
         reqs = extract_urls(driver)
+        forms = extract_forms(driver)
+        forms = set_form_values(forms)
+        ui_forms = extract_ui_forms(driver)
+        events = extract_events(driver)
+        iframes = extract_iframes(driver)
         
         try: 
             wait_json = driver.execute_scipt("return JSON.stringify(need_to_wait)")
@@ -1034,6 +1179,53 @@ class Crawler:
                 graph.connect(request, req, CrawlEdge(req.method, None, current_cookies), edge)
             else:
                 logging.info("Not allowd to add edges: %s" %new_edge)   
+                
+        logging.info("Adding requests from froms")
+        for form in forms:
+            req = Request(form.action, form.method)
+            logging.info("from forms %s " % str(req))
+            new_edge = graph.create_edge( request, req, CrawlEdge("form", form, current_cookies), edge )
+            if allow_edge(graph, new_edge):
+                graph.add(req)
+                graph.connect(request, req, CrawlEdge("form", form, current_cookies), edge )
+            else:
+                logging.info("Not allowed to add edge: %s" % new_edge)
+
+        logging.info("Adding requests from events")
+        for event in events:
+            req = Request(request.url, "event")
+            logging.info("from events %s " % str(req))
+
+            new_edge = graph.create_edge( request, req, CrawlEdge("event", event, current_cookies), edge )
+            if allow_edge(graph, new_edge):
+                graph.add(req)
+                graph.connect(request, req, CrawlEdge("event", event, current_cookies), edge )
+            else:
+                logging.info("Not allowed to add edge: %s" % new_edge)
+
+        logging.info("Adding requests from iframes")
+        for iframe in iframes:
+            req = Request(iframe.src, "iframe")
+            logging.info("from iframes %s " % str(req))
+
+            new_edge = graph.create_edge( request, req, CrawlEdge("iframe", iframe, current_cookies), edge )
+            if allow_edge(graph, new_edge):
+                graph.add(req)
+                graph.connect(request, req, CrawlEdge("iframe", iframe, current_cookies), edge )
+            else:
+                logging.info("Not allowed to add edge: %s" % new_edge)
+
+        logging.info("Adding requests from ui_forms")
+        for ui_form in ui_forms:
+            req = Request(driver.current_url, "ui_form")
+            logging.info("from ui_forms %s " % str(req))
+
+            new_edge = graph.create_edge( request, req, CrawlEdge("ui_form", ui_form, current_cookies), edge )
+            if allow_edge(graph, new_edge):
+                graph.add(req)
+                graph.connect(request, req, CrawlEdge("ui_form", ui_form, current_cookies), edge )
+            else:
+                logging.info("Not allowed to add edge: %s" % new_edge)
     
         try:
             alert = driver.switch_to.alert
