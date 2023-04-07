@@ -18,8 +18,8 @@ parser = argparse.ArgumentParser(description='Black box crawler')
 parser.add_argument("--url", help="URL for crawling")
 parser.add_argument("--single", default=False, help="No crawling use single URL True/False")
 # parser.add_argument("--debug", action="store_true", help="Dont use path deconstruction and recon scan. Good for testing single URL")
-#parser.add_argument("--xss", help="XSS attack")
-#parser.add_argument("--sql", help="SQL injection")
+parser.add_argument("--xss", default=True, help="XSS attack")
+parser.add_argument("--sql", default=False, help="SQL injection")
 args = parser.parse_args()
 
 # Clean form_files/dynamic
@@ -56,10 +56,10 @@ driver.add_script( open("js/remove_alerts.js", "r").read() )
 
 url = args.url
 s_url = args.single
+xss = args.xss
+sql = args.sql 
 
-
-
-Crawler(driver,url,s_url).start()
+Crawler(driver,url,s_url,xss,sql).start()
 
 # if args.url:
 #     url=args.url

@@ -292,10 +292,12 @@ class Ui_form:
 
 
 class Crawler:
-    def __init__(self,driver,url,s_url):
+    def __init__(self,driver,url,s_url,xss,sql):
         self.driver = driver
         self.url = url
         self.s_url = s_url      #single url testing 
+        self.xss = xss          #select attack type
+        self.sql = sql          
         self.graph = Graph()
         
         self.session_id = str(time.time()) + "-" + str(random.randint(1,10000000))
@@ -412,8 +414,13 @@ class Crawler:
                 break
         
         print("Done crawling, ready to attack")
-        self.attack()
-    
+        
+        if self.xss == 'True':
+            self.attack_xss()
+        elif self.sql == 'True':
+            self.attack_sql()
+            
+            
     def extract_vectors(self):
         print("Extracting urls")
         vectors = []
@@ -863,9 +870,9 @@ class Crawler:
         return successful_xss
 
     def attack_sql(self): #attack simple reflect SQL
-        pass
+        print ("SQL injection")
 
-    def attack(self):  #attack xss 
+    def attack_xss(self):  #attack xss 
         driver = self.driver
         successful_xss = set() #non repeat elements  
         vectors = self.extract_vectors() 

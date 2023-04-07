@@ -11,7 +11,7 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": true, 
-            "args": ["--url", "http://localhost:8090/pictures/search.php?query=", "--single", "False"]
+            "args": ["--url", "http://localhost:8090/pictures/search.php?query=", "--single", "True", "--xss", "True"]
         }
     ]
 }
