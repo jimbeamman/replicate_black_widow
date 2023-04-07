@@ -861,8 +861,11 @@ class Crawler:
                 break
             
         return successful_xss
-    
-    def attack(self):  #attack 
+
+    def attack_sql(self): #attack simple reflect SQL
+        pass
+
+    def attack(self):  #attack xss 
         driver = self.driver
         successful_xss = set() #non repeat elements  
         vectors = self.extract_vectors() 
