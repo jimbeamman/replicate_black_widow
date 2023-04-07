@@ -16,6 +16,7 @@ from Crawler import *
 
 parser = argparse.ArgumentParser(description='Black box crawler')
 parser.add_argument("--url", help="URL for crawling")
+parser.add_argument("--single", default=False, help="No crawling use single URL True/False")
 # parser.add_argument("--debug", action="store_true", help="Dont use path deconstruction and recon scan. Good for testing single URL")
 #parser.add_argument("--xss", help="XSS attack")
 #parser.add_argument("--sql", help="SQL injection")
@@ -54,7 +55,11 @@ driver.add_script( open("js/xss_xhr.js", "r").read() )
 driver.add_script( open("js/remove_alerts.js", "r").read() )
 
 url = args.url
-Crawler(driver,url).start()
+s_url = args.single
+
+
+
+Crawler(driver,url,s_url).start()
 
 # if args.url:
 #     url=args.url

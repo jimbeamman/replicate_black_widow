@@ -292,9 +292,10 @@ class Ui_form:
 
 
 class Crawler:
-    def __init__(self,driver,url):
+    def __init__(self,driver,url,s_url):
         self.driver = driver
         self.url = url
+        self.s_url = s_url      #single url testing 
         self.graph = Graph()
         
         self.session_id = str(time.time()) + "-" + str(random.randint(1,10000000))
@@ -386,16 +387,26 @@ class Crawler:
                 print(str(n_gets).ljust(7), "|", str(n_forms).ljust(6), "|", n_events)
                 print("--------------")
                 
-                try:
-                    still_work = self.rec_crawl()   #recursive crawling
-                except Exception as e:
-                    still_work = n_gets
-                    print(e)
-                    print(traceback.format_exc()) 
-                    logging.error(e)
-                    logging.error("Top level error while crawling")
-                #Enter to continute
-            
+                if self.s_url == 'False':
+                    try:
+                        still_work = self.rec_crawl()   #recursive crawling
+                    except Exception as e:
+                        still_work = n_gets
+                        print(e)
+                        print(traceback.format_exc()) 
+                        logging.error(e)
+                        logging.error("Top level error while crawling")
+                    #Enter to continute
+                    
+                else:
+                    try: 
+                        still_work = False
+                    except Exception as e:
+                        print(e)
+                        print(traceback.format_exc()) 
+                        logging.error(e)
+                        logging.error("Top level error while crawling")
+                        
             except KeyboardInterrupt:
                 print ("CTRL-C, abort mission")
                 break
