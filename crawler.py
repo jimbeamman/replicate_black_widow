@@ -453,7 +453,6 @@ class Crawler:
                         added.add(event)
         return vectors
     
-    #implement these funcitons 
     def attack_404(self, driver, attack_lookup_table):
         successful_xss = set()
         
@@ -523,6 +522,16 @@ class Crawler:
                 logging.info("Found injectin, don't test all")
                 break
         return successful_xss
+    
+    #implement sql get injection
+    def attack_sql_get(self):
+        pass
+    
+    def attack_sql_event(self):
+        pass
+    
+    def attack_sql_form(self):
+        pass
     
     def attack_get(self, driver, vector):
         
@@ -870,7 +879,37 @@ class Crawler:
         return successful_xss
 
     def attack_sql(self): #attack simple reflect SQL
+        driver = self.driver
+        successful_sql = set()
+        vectors = self.extract_vectors()
+        
+        pprint.pprint(vectors)
+        
+        done = set()
+        
+        for edge in self.graph.edges:
+            if edge.value.method == "get":
+                if not check_edge(driver, self.graph, edge):
+                    logging.warning("Check_edge failed for in attack phase" + str(edge))
+                else:
+                    succesful = follow_edge(driver, self.graph, edge)
+                    if succesful:
+                        self.track_form(driver, edge)
+                        
+        gets_to_attack = [(vector_type, vector) for (vector_type, vector) in vectors if vector_type == "get" ]
+        get_c = 0
+        for (vector_type, vector) in gets_to_attack:
+            print("Progress (get): ", get_c, "/", len(gets_to_attack))
+            if vector_type == "get":
+                get_sql = self.attack_sql_get(driver, vector) #attack sql get
+                successful_sql = successful_sql.union(get_sql)
+            get_c += 1
+            
+            
         print ("SQL injection")
+        #attack def() -> event, form, get 
+        #for the SQL -> check the respond 
+        
 
     def attack_xss(self):  #attack xss 
         driver = self.driver
@@ -890,7 +929,6 @@ class Crawler:
                         self.track_form(driver, edge)
         
         #attack XSS
-        #implement SQL?xx
         events_to_attack = [ (vector_type,vector) for (vector_type, vector) in vectors if vector_type == "event" ]
         event_c = 0
         for (vector_type,vector) in events_to_attack:
