@@ -524,7 +524,13 @@ class Crawler:
         return successful_xss
     
     #implement sql get injection
-    def attack_sql_get(self):
+    #---------------#
+    def attack_sql_get(self, driver, vector):
+        
+        successful_sql = set()
+        
+        sql_payloads = self.get_sql_payload()
+        
         pass
     
     def attack_sql_event(self):
@@ -532,7 +538,7 @@ class Crawler:
     
     def attack_sql_form(self):
         pass
-    
+    #--------------#
     def attack_get(self, driver, vector):
         
         successful_xss = set()
@@ -637,6 +643,18 @@ class Crawler:
 
         # xss_payloads = ['<a href="" jaekpot-attribute="'+alert_text+'">jaekpot</a>']
         return xss_payloads
+    
+    def get_sql_payload(self):  #reference sql payload https://github.com/payloadbox/sql-injection-payload-list need to add more
+        sql_payloads = ['\'',
+                        '\'\'',
+                        '\`',
+                        '\`\`',
+                        ',',
+                        '\;',
+                        '\' or \"',
+                        '''.,'''
+                        ]
+        return sql_payloads
     
     def arm_payload(self, payload_template):
         lookup_id = str(random.randint(1,100000000))
@@ -904,9 +922,27 @@ class Crawler:
                 get_sql = self.attack_sql_get(driver, vector) #attack sql get
                 successful_sql = successful_sql.union(get_sql)
             get_c += 1
-            
-            
-        print ("SQL injection")
+        
+        #attack event 
+        
+        
+        
+        #attack form 
+        print("-"*50)
+        print("Successful attacks: ", len(successful_sql))
+        print("-"*50)
+        
+        f = open("successful_sql.txt", "w")
+        f.write(str(successful_sql))
+        f = open("attack_lookup_table.txt", "w")
+        f.write(str(self.attack_lookup_table))
+        
+        print("ATTACK TABLE\n\n\n\n")
+        
+        for (k,v) in self.attack_lookup_table.items():
+            if v["reflected"]:
+                print(k,v)
+                print("-"*50)
         #attack def() -> event, form, get 
         #for the SQL -> check the respond 
         
