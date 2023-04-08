@@ -531,7 +531,21 @@ class Crawler:
         
         sql_payloads = self.get_sql_payload()
         
-        pass
+        purl = urlparse(vector)
+        print(purl)
+        for parameter in purl.query.split("&"):
+            if parameter:
+                for payload_template in sql_payloads:
+                    
+                    # if "=" in parameter:
+                    #     (key,value) = parameter.split("=",1)
+                    # else:
+                    #     (key,value) = (parameter, "")
+                    
+                    # value = payload
+                    print(payload_template)
+    
+        return  successful_sql  #implement this
     
     def attack_sql_event(self):
         pass
@@ -544,7 +558,7 @@ class Crawler:
         successful_xss = set()
         
         xss_payloads = self.get_payload()
-        
+                                        
         purl = urlparse(vector)
         print(purl)
         for parameter in purl.query.split("&"):
