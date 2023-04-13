@@ -9,7 +9,7 @@
     - `PATH=$PATH:.`
 
 ## Run the scanner
----
+
 `python3 main.py --url http://www.example.com --single True --sql|xss True`
 
 - `--single` No web crawling recursive
