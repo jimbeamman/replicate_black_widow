@@ -415,6 +415,7 @@ class Crawler:
         
         print("Done crawling, ready to attack")
         
+        #Select condition
         if self.xss == 'True':
             self.attack_xss()
         elif self.sql == 'True':
@@ -525,6 +526,9 @@ class Crawler:
     
     #implement sql get injection
     #---------------#
+    #find the response content? -> error detect regexe?
+    #error code 500 
+    #post form 
     def attack_sql_get(self, driver, vector):
         
         successful_sql = set()
@@ -544,7 +548,6 @@ class Crawler:
                     
                     # value = payload
                     print(payload_template)
-    
         return  successful_sql  #implement this
     
     def attack_sql_event(self):
@@ -553,7 +556,7 @@ class Crawler:
     def attack_sql_form(self):
         pass
     #--------------#
-    def attack_get(self, driver, vector):
+    def attack_get(self, driver, vector):   # attack xss via get URL
         
         successful_xss = set()
         
