@@ -567,11 +567,97 @@ class Crawler:
                     
         return  successful_sql  #implement this
     
-    def attack_sql_event(self):
-        pass
+    def attack_sql_event(self, driver, vector_edge):
+        print("-"*50)
+        successful_sql = set()
+        
+        sql_payloads = self.get_sql_payload()
+        
+        print("Will try to attack vector", vector_edge)
+        for payload_template in sql_payloads:
+            (lookup_id, payload) = self.arm_payload(payload_template)
+            event = vector_edge.value.method_data
+            self.use_payload(lookup_id, (vector_edge, event.event, payload))
+            follow_edge(driver, self.graph, vector_edge)
+        
+            try: 
+                if event.event == "oninput" or event.event == "input":
+                    el = driver.find_element(By.XPATH, event.addr)
+                    el.clear()
+                    el.send_keys(payload)
+                    el.send_keys(Keys.RETURN)
+                    logging.info("oninput %s" % driver.find_element(By.XPATH,event.addr))
+                if event.event == "oncompositionstart" or event.event == "compositionstart":
+                    el = driver.find_element(By.XPATH, event.addr)
+                    el.click()
+                    el.clear()
+                    el.send_keys(payload)
+                    el.send_keys(Keys.RETURN)
+                    logging.info("oncompositionstart %s" % driver.find_element(By.XPATH, event.addr))
+                else:
+                    logging.error("Could not attack event.event %s" % event.event)             
+            except:
+                print("PROBLEM ATTACKING EVENT: ", event)
+                logging.error("Can't attack event " + str(event))
+            
+            inspect_result = self.inspect_attack_sql(vector_edge)
+            if inspect_result:
+                successful_sql = successful_sql.union()
+                logging.info("Found injection, don't test all")
+                break
+        return successful_sql
     
-    def attack_sql_form(self):
-        pass
+    def attack_sql_form(self, driver, vector_edge, check_edge=None):
+        logging.info("ATTACKING VECTOR_EDGE: " + str(vector_edge))
+        successful_sql = set()
+        
+        graph = self.graph
+        path = rec_find_path(graph, vector_edge)
+        
+        logging.info ("PATH LENGTH: " + str(len(path)))
+        forms = []
+        for edge in path:
+            if edge.value.method=="form":
+                forms.append(edge.value.method_data)
+        
+        #safe fix form
+        payloads = self.get_sql_payload()
+        for payload_template in payloads:
+            for form in forms:
+                form = self.fix_form(form, payload_template, True)
+                
+            execute_result = self.execute_path(driver, path)
+            if not execute_result:
+                logging.warning("Early break attack on " + str(vector_edge))
+                return False
+            if check_edge:
+                logging.info("check_edge defined from tracker " + str(check_edge))
+                follow_edge(driver, graph, check_edge)
+            inspect_result = self.inspect_attack(vector_edge)
+            if inspect_result:
+                print("Found one, quit..")
+                return successful_sql
+        
+        #Aggressive fix form
+        payloads = self.get_sql_payload()
+        for payload_template in payloads:
+            for form in forms:
+                form = self.fix_form(form, payload_template, False)
+            self.execute_path(driver, path)
+            if not execute_result:
+                logging.warning("Early break attack on " + str(vector_edge))
+                return False
+            if check_edge:
+                logging.info("check_edge defined from tracker " + str(check_edge))
+                follow_edge(driver, graph, check_edge)
+            
+            inspect_result = self.inspect_attack(vector_edge)
+            if inspect_result:
+                print("Found one, quit..")
+                return successful_sql
+        
+        return successful_sql
+           
     #--------------#
     def attack_get(self, driver, vector):   # attack xss via get URL
         
@@ -698,6 +784,10 @@ class Crawler:
     def use_payload(self, lookup_id, vector_with_payload):
         self.attack_lookup_table[str(lookup_id)] = {"injected": vector_with_payload,
                                                     "reflected": set()}
+    
+    # implement spect_attack_sql
+    def inspect_attack_sql(self):
+        pass
     
     def inspect_attack(self, vector_edge):
         successful_xss = set()
@@ -938,7 +1028,7 @@ class Crawler:
         
         done = set()
         
-        # attack in get        
+  
         for edge in self.graph.edges:
             if edge.value.method == "get":
                 if not check_edge(driver, self.graph, edge):
@@ -947,7 +1037,8 @@ class Crawler:
                     succesful = follow_edge(driver, self.graph, edge)
                     if succesful:
                         self.track_form(driver, edge)
-                        
+        
+        # attack get                 
         gets_to_attack = [(vector_type, vector) for (vector_type, vector) in vectors if vector_type == "get" ]
         get_c = 0
         for (vector_type, vector) in gets_to_attack:
@@ -957,22 +1048,30 @@ class Crawler:
                 successful_sql = successful_sql.union(get_sql)
             get_c += 1
         
-     
+        #attack event
+        events_to_attack = [ (vector_type,vector) for (vector_type, vector) in vectors if vector_type == "event" ]
+        event_c = 0
+        for (vector_type,vector) in events_to_attack:
+            print("Progress (events): ", event_c , "/", len(events_to_attack))
+            if vector_type == "event":
+                event_xss = self.attack_sql_event(driver, vector)
+                successful_xss = successful_xss.union(event_xss)
+            event_c += 1
         #attack form
         forms_to_attack = [ (vector_type,vector) for (vector_type, vector) in vectors if vector_type == "form" ]
         form_c = 0
         for (vector_type,vector) in forms_to_attack:
             print("Progress (forms): ", form_c , "/", len(forms_to_attack))
             if vector_type == "form":
-                form_sql = self.path_attack_form(driver, vector)
+                form_sql = self.attack_sql_form(driver, vector)
 
                 # Save to file
-                f = open("form_xss.txt", "a+")
-                for xss in form_sql:
-                    if xss in self.attack_lookup_table:
+                f = open("form_sql.txt", "a+")
+                for sql in form_sql:
+                    if sql in self.attack_lookup_table:
                         f.write(str(self.attack_lookup_table)  + "\n")
 
-                successful_xss = successful_xss.union(form_sql)
+                successful_sql = successful_sql.union(form_sql)
             form_c += 1   
 
         print("-"*50)
@@ -987,10 +1086,10 @@ class Crawler:
         print("ATTACK TABLE\n\n\n\n")
         
         for (k,v) in self.attack_lookup_table.items():
-            if v["reflected"]:
+            if v["SQL injeciton"]:
                 print(k,v)
                 print("-"*50)
-        #attack def() -> event, form, get 
+
         #for the SQL -> check the respond 
         
 

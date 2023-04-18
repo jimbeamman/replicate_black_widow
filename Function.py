@@ -318,19 +318,19 @@ def execute_event(driver, do):
             else:
                 el = driver.find_element(By.XPATH, do.addr)
                 el.clear()
-                el.send_keys("jAEkPot")
+                el.send_keys("jAEkPot'")
                 el.send_keys(Keys.RETURN)
         elif do.event == "input" or do.event == "oninput":
             el = driver.find_element(By.XPATH, do.addr)
             el.clear()
-            el.send_keys("jAEkPot")
+            el.send_keys("jAEkPot'")
             el.send_keys(Keys.RETURN)
             logging.info("oniput %s" % driver.find_element(By.XPATH, do.addr))
             
         elif do.event == "compositionstart":
             el = driver.find_element(By.XPATH, do.addr)
             el.clear()
-            el.send_keys("jAEkPot")
+            el.send_keys("jAEkPot'")
             el.send_keys(Keys.RETURN)
             logging.info("Composition Start %s" % driver.find_element(By.XPATH, do.addr))
         
@@ -698,26 +698,26 @@ def set_standard_values(old_form):
             elif form_el.name == "email":
                 form_el.value = "jaekpot@localhost.com"
             else:
-                form_el.value = "jAEkPot"
+                form_el.value = "jAEkPot'"
         elif form_el.itype == "textarea":
-            form_el.value = "jAEkPot"
+            form_el.value = "jAEkPot'"
         elif form_el.itype == "email":
             form_el.value = "jaekpot@localhost.com"
         elif form_el.itype == "hidden":
             pass
         elif form_el.itype == "password":
-            form_el.value = "jAEkPot"
+            form_el.value = "jAEkPot'"
             #form_el.value = "jAEkPot1"
         elif form_el.itype == "number":
             # TODO Look at min/max/step/maxlength to pick valid numbers
             form_el.value = "1"
         elif form_el.itype == "iframe":
-            form_el.value = "jAEkPot"
+            form_el.value = "jAEkPot'"
         elif form_el.itype == "button":
             pass
         else:
             logging.warning( str(form_el) + " was handled by default")
-            form_el.value = "jAEkPot"
+            form_el.value = "jAEkPot'"
 
     return form
 
