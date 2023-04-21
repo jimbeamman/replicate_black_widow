@@ -78,14 +78,13 @@ class SQL:
                 self.driver.find_element(By.XPATH,"//input[@type='submit']").click() #found problem becuase it cannot get the elemnents after sending
                 
     def get_sql_payload(self):  #reference sql payload https://github.com/payloadbox/sql-injection-payload-list need to add more
-        sql_payloads = ['\\',
-                        '\'',
+        sql_payloads = ['\'',
                         '\"',
                         '\,'
                         ]
         return sql_payloads
     
-    def response(self,s_text, r_text):  #s_text : search text, r_text = result text
+    def check_response(self,s_text, r_text):  #s_text : search text, r_text = result text
         self.s_text = s_text
         self.r_text = r_text
         ##add response 

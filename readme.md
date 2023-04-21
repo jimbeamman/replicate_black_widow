@@ -10,7 +10,7 @@
 ## Run the scanner
 `python3 main.py --url http://www.example.com --single True --sql|xss True`
 
-- `--single` No web crawling recursive
+- `--single` No web crawling recursive - check for GET method
 - `--sql|xss` Select the attack vectors
 
 ## Web app docker 
