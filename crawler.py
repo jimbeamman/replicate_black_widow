@@ -786,8 +786,37 @@ class Crawler:
                                                     "reflected": set()}
     
     # implement spect_attack_sql
-    def inspect_attack_sql(self):
-        pass
+    def inspect_attack_sql(self, vector_edge):
+        successful_sql = set()
+        
+        attribute_injects = self.driver.find_elements(By.XPATH, "//*[@jaekpot-attribute]")
+        for attribute in attribute_injects:
+            lookup_id = attribute.get_attribute("jaekpot-attribute")
+            successful_sql.add(lookup_id)
+            self.reflected_payload(lookup_id, vector_edge)
+        
+        sql_json = self.driver.execute_script("return JSON.stringify(sql_array)")  ##add JSON.stringify
+        lookup_ids = json.loads(sql_json)
+        
+        for lookup_id in lookup_ids:
+            successful_sql.add(lookup_id)
+            self.reflected_payload(lookup_id, vector_edge)
+        
+        if successful_sql:
+            f = open("successful_sql-"+self.session_id+".txt", "a+")
+            for sql in successful_sql:
+                attack_entry = self.get_table_entry(sql)
+                if attack_entry:
+                    print("-"*50)
+                    print("Found vulnerability: ", attack_entry)
+                    print("-"*50)
+                    
+                    simple_entry = {'reflect': str(attack_entry['reflected']),
+                                    'injected': str(attack_entry['injected'])}
+                    
+                    f.write(json.dumps(simple_entry) + "\n")
+        return successful_sql
+        
     
     def inspect_attack(self, vector_edge):
         successful_xss = set()
