@@ -13,5 +13,8 @@
 - `--single` No web crawling recursive - check for GET method
 - `--sql|xss` Select the attack vectors
 
+## Proof of Concept for SQL injection
+- `python3 test/sql_test.py`
+
 ## Web app docker 
 [ReScan dockers](https://gitlab.com/kostasdrk/rescanApps/-/tree/main)
