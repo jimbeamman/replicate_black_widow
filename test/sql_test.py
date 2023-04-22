@@ -31,19 +31,27 @@ import requests
 
 driver = webdriver.Chrome()
 
-
 class SQL:
     def __init__(self,driver,url):
         self.driver = driver
         self.url = url
         
         
-    #get from with Selenium  or javascipt?
+    #get from with Selenium  or JavaScipt? -> use JavaScript
     #test with JS
     def get_form(self):
         self.driver.get(self.url)
-        elements = self.driver.find_elements(By.TAG_NAME, 'input')   #find xpath form -> not work 
+        elements = self.driver.find_elements(By.TAG_NAME, 'input')   #find xpath form
+
         return elements
+    
+    def submit_button(self):
+        script = """
+                    const submitButton = document.querySelector('input[type="submit"]');
+                    return submitButton;
+                 """
+        submit_bt = self.driver.execute_script(script)
+        return submit_bt
             
     ###TODO###
     # collect and save node + edge
@@ -56,7 +64,9 @@ class SQL:
             #universal detection
         
         payloads = self.get_sql_payload()
-        elements = self.get_form()
+        elements  = self.get_form()
+        
+        submit_bt = elements[len(elements)-1]
         result_payload =[]
         
         # for element in elements:
@@ -70,17 +80,26 @@ class SQL:
         
         
         ## cannot sent through Selenium -> send with request 
-        for element in elements:
-            for payload in payloads:
+        for payload in payloads:
+            for element in elements:
                 #element.send_keys(payload)
                 #send with selenium
-                element.send_keys(payload)
-                self.driver.find_element(By.XPATH,"//input[@type='submit']").click() #found problem becuase it cannot get the elemnents after sending
-                
+                try:
+                    element.send_keys(payload)
+                except Exception as e:
+                    print (e)
+                #self.driver.find_element(By.XPATH,"//input[@type='submit']").click() #found problem becuase it cannot get the elemnents after sending
+                #self.driver.submit_bt.click()
+                #self.driver.reload()
+                #self.driver.get(self.url)
+            submit_bt.click()
+            #if (re.)      check the response
+            break
+
     def get_sql_payload(self):  #reference sql payload https://github.com/payloadbox/sql-injection-payload-list need to add more
-        sql_payloads = ['\'',
-                        '\"',
-                        '\,'
+        sql_payloads = ['injection\'',
+                        'injection\"',
+                        'injection\,'
                         ]
         return sql_payloads
     
