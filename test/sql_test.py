@@ -42,7 +42,6 @@ class SQL:
     def get_form(self):
         self.driver.get(self.url)
         elements = self.driver.find_elements(By.TAG_NAME, 'input')   #find xpath form
-
         return elements
     
     def submit_button(self):
@@ -93,8 +92,10 @@ class SQL:
                 #self.driver.reload()
                 #self.driver.get(self.url)
             submit_bt.click()
-            #if (re.)      check the response
-            break
+            get_source = self.driver.page_source
+            if (re.search("injection", get_source)):
+                print("Found vulnerability")
+                break
 
     def get_sql_payload(self):  #reference sql payload https://github.com/payloadbox/sql-injection-payload-list need to add more
         sql_payloads = ['injection\'',
