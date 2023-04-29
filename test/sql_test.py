@@ -86,7 +86,7 @@ class SQL:
                 f.write("SQL reflect -> "+str(self.url))
                 if(re.search("an error", get_source)):      # -> reduce false positive sometime false positive becuase of it appear in the content such as, file name
                     print("Found SQL injection")            
-                    break
+                    return
             else:
                 self.driver.quit()
             
@@ -115,10 +115,71 @@ class SQL:
                 outfile.write(line)
                 lines_seen.add(line)
         outfile.close()
+        
+class Second_SQL(): 
+    def __init__(self, driver,source, dest):
+        self.driver = driver
+        self.source = source
+        self.dest = dest
+    
+    def get_form(self):
+        self.driver.get(self.source)
+        elements = self.driver.find_elements(By.TAG_NAME, 'input')   #find xpath form
+        return elements
+    
+    def submit_button(self):
+        script = """
+                    const submitButton = document.querySelector('input[type="submit"]');
+                    return submitButton;
+                 """
+        submit_bt = self.driver.execute_script(script)
+        return submit_bt
+            
+
+    def attack(self):
+        print('Begining attack the website '+(self.source))
+        
+        payloads = self.get_sql_payload()
+        elements  = self.get_form()
+        
+        get_submit_bt = self.submit_button()
+        
+        for payload in payloads:
+            for element in elements:
+                try:
+                    element.send_keys(payload)
+
+                except Exception as e:
+                    print (e)
+        
+            get_submit_bt.click()
+                    
+            self.driver.get(self.dest)
+            get_source = self.driver.page_source
+            if (re.search("inje", get_source)):       
+                f = open("successful_second_sql.txt", "w")
+                f.write("SQL store : "+str(self.source)+" -> " +str(self.dest))
+                if(re.search("an error", get_source)):      # -> reduce false positive sometime false positive becuase of it appear in the content such as, file name
+                    print("Found Store SQL injection")            
+                    return
+            else:
+                self.driver.quit()
+            
+
+    def get_sql_payload(self):  #reference sql payload https://github.com/payloadbox/sql-injection-payload-list need to add more
+        sql_payloads = ['inje\'',
+                        'inje\"',
+                        'inje\,'
+                        ]
+        return sql_payloads
+    
 
 if __name__ == "__main__":
     
-    SQL(driver,'http://localhost:8090/users/login.php').attack()  #change the url to unique
+    
+    Second_SQL(driver, 'http://localhost:8090/users/register.php', 'http://localhost:8090/users/similar.php').attack()
+    
+    #SQL(driver,'http://localhost:8090/users/login.php').attack()  #change the url to unique
 
 
 

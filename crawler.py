@@ -1345,6 +1345,9 @@ class Crawler:
         logging.info("Current url: " + driver.current_url)
         logging.info("Crawl (edge): " + str(edge) )
         print("Crawl (edge): " + str(edge))
+        ed_out = open("edge.txt", 'a+')
+        ed_out.write("\n")
+        ed_out.write(str(edge)) 
         
         return (edge, request)
     

@@ -23,4 +23,5 @@ def remove_get(infile, outfile):
 
 # remove_get("url_req.txt", "uniq_req.txt")
 #remove_redundanc("url_req.txt", "uniq_req.txt")
-remove_redundanc("url_form.txt", "uniq_form.txt")
+#remove_redundanc("url_form.txt", "uniq_form.txt")
+remove_redundanc("edge.txt", "edge_uniq.txt")
