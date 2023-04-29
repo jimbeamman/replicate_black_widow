@@ -104,9 +104,21 @@ class SQL:
         ##add response 
         #return re.search()
         pass
+    
+    def remove_redundanc(self,infile, outfile):
+        self.infile = infile
+        self.outfile = outfile
+        lines_seen = set() # holds lines already seen
+        outfile = open(self.outfile, "w")
+        for line in open(self.infile, "r"):
+            if line not in lines_seen: # not a duplicate
+                outfile.write(line)
+                lines_seen.add(line)
+        outfile.close()
 
 if __name__ == "__main__":
-    SQL(driver,'http://localhost:8090/users/login.php').attack()
+    
+    SQL(driver,'http://localhost:8090/users/login.php').attack()  #change the url to unique
 
 
 
