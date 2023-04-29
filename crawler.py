@@ -323,7 +323,7 @@ class Crawler:
         self.done_form = {}
         self.max_done_form = 5
 
-        logging.info("Init crawl on " + url)
+        #logging.info("Init crawl on " + self.url)
                 
     def start(self, debug_mode=False):
         self.root_req = Request("ROOTREQ", "get") #reguest url 
@@ -1441,8 +1441,12 @@ class Crawler:
         current_cookies = driver.get_cookies()
         
         logging.info("Addition requests from URLs")
+
         for req in reqs:
-            logging.info("from URLs %s" %str(req)) 
+            logging.info("from URLs %s" %str(req))
+            f = open("url.txt", 'a+')
+            f.write("\n")
+            f.write(str(req)) 
             new_edge = graph.create_edge(request, req, CrawlEdge(req.method, None, current_cookies), edge)
             if allow_edge(graph, new_edge):
                 graph.add(req)

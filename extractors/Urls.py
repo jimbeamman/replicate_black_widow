@@ -98,9 +98,9 @@ def extract_urls(driver):
 
     resps = driver.execute_script("return JSON.stringify(window_open_urls)")
     window_open_urls = json.loads(resps)
+
     for window_open_url in window_open_urls:
         full_window_open_url = urljoin( driver.current_url, window_open_url )
         urls.add( url_to_request(full_window_open_url) )
-    
     logging.debug("URLs form extract_urls %s" % str(urls))
     return urls

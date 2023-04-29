@@ -1,4 +1,5 @@
 # Black Widow - Blackbox Data-Driven Web Scanning (replicated + SQL attack vector)
+We have created a learning repository to replicate Black Widow's black box scanning technique. In our work, we have added an SQL injection module to identify 1st and 2nd order injections, which works well on error reflection-based detections. However, further improvements are required to detect time-based or boolean-based errors.
 
 ## Setup 
 1. Setup python virtual enviroment
