@@ -1441,12 +1441,11 @@ class Crawler:
         current_cookies = driver.get_cookies()
         
         logging.info("Addition requests from URLs")
-
+        r = open("url_req.txt", 'a+')
         for req in reqs:
             logging.info("from URLs %s" %str(req))
-            f = open("url.txt", 'a+')
-            f.write("\n")
-            f.write(str(req)) 
+            r.write("\n")
+            r.write(str(req)) 
             new_edge = graph.create_edge(request, req, CrawlEdge(req.method, None, current_cookies), edge)
             if allow_edge(graph, new_edge):
                 graph.add(req)
@@ -1455,9 +1454,13 @@ class Crawler:
                 logging.info("Not allowd to add edges: %s" %new_edge)   
                 
         logging.info("Adding requests from froms")
+        f = open("url_form.txt", 'a+')
         for form in forms:
             req = Request(form.action, form.method)
             logging.info("from forms %s " % str(req))
+            f.write("\n")
+            f.write(str(req))
+            f.write(str(form)) 
             new_edge = graph.create_edge( request, req, CrawlEdge("form", form, current_cookies), edge )
             if allow_edge(graph, new_edge):
                 graph.add(req)
@@ -1466,10 +1469,13 @@ class Crawler:
                 logging.info("Not allowed to add edge: %s" % new_edge)
 
         logging.info("Adding requests from events")
+        e = open("url_event.txt", 'a+')
         for event in events:
             req = Request(request.url, "event")
             logging.info("from events %s " % str(req))
-
+            e.write("\n")
+            e.write(str(req))
+            e.write(str(event)) 
             new_edge = graph.create_edge( request, req, CrawlEdge("event", event, current_cookies), edge )
             if allow_edge(graph, new_edge):
                 graph.add(req)
@@ -1478,9 +1484,13 @@ class Crawler:
                 logging.info("Not allowed to add edge: %s" % new_edge)
 
         logging.info("Adding requests from iframes")
+        i = open("url_iframe.txt", 'a+')
         for iframe in iframes:
             req = Request(iframe.src, "iframe")
             logging.info("from iframes %s " % str(req))
+            i.write("\n")
+            i.write(str(req))
+            i.write(str(iframe)) 
 
             new_edge = graph.create_edge( request, req, CrawlEdge("iframe", iframe, current_cookies), edge )
             if allow_edge(graph, new_edge):
@@ -1490,9 +1500,13 @@ class Crawler:
                 logging.info("Not allowed to add edge: %s" % new_edge)
 
         logging.info("Adding requests from ui_forms")
+        u = open("url_uiform.txt", 'a+')
         for ui_form in ui_forms:
             req = Request(driver.current_url, "ui_form")
             logging.info("from ui_forms %s " % str(req))
+            u.write("\n")
+            u.write(str(req))
+            u.write(str(ui_form)) 
 
             new_edge = graph.create_edge( request, req, CrawlEdge("ui_form", ui_form, current_cookies), edge )
             if allow_edge(graph, new_edge):
