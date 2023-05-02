@@ -17,4 +17,5 @@ We have created a learning repository to replicate Black Widow's black box scann
 - `python3 test/sql_test.py`
 
 ## Web app docker 
+- Repository of Web applications for evaluation
 [ReScan dockers](https://gitlab.com/kostasdrk/rescanApps/-/tree/main)
