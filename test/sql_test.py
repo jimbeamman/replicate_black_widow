@@ -167,20 +167,44 @@ class Second_SQL():
             
 
     def get_sql_payload(self):  #reference sql payload https://github.com/payloadbox/sql-injection-payload-list need to add more
-        sql_payloads = ['inje\'',
-                        'inje\"',
-                        'inje\,'
+        sql_payloads = ['injection\'',
+                        'injection\"',
+                        'injection\,'
                         ]
         return sql_payloads
     
 
 if __name__ == "__main__":
-    
-    
-    Second_SQL(driver, 'http://localhost:8090/users/register.php', 'http://localhost:8090/users/similar.php').attack()
-    
-    #SQL(driver,'http://localhost:8090/users/login.php').attack()  #change the url to unique
+       
+    #SQL(driver,'http://localhost:8090/users/login.php').attack()  #first-order SQL injection
+    Second_SQL(driver, 'http://localhost:8090/users/register.php', 'http://localhost:8090/users/similar.php').attack() #secode-order SQL injeciton
 
+
+##### run Black Widow to gerate URLs crawler module #####
+#Get URLs for first-order SQL injection
+#Use edge for second-order SQL injection 
+
+#Example 
+#URLs
+# [get]http://localhost:8090/users/home.php
+# [get]http://localhost:8090/guestbook.php
+# [get]http://localhost:8090/users/sample.php?userid=1
+# [get]http://localhost:8090/users/register.php
+# [get]http://localhost:8090/tos.php
+# [get]http://localhost:8090/users/login.php
+# [get]http://localhost:8090/calendar.php
+# [get]http://localhost:8090/pictures/upload.php
+# [get]http://localhost:8090/pictures/recent.php
+# [get]http://localhost:8090/admin/index.php?page=login
+# [get]http://localhost:8090/
+
+
+#EDGE
+# [get]http://localhost:8090/users/register.php ->[get]http://localhost:8090/cart/review.php
+# [get]http://localhost:8090/users/register.php ->[get]http://localhost:8090/users/similar.php
+# [get]http://localhost:8090/users/register.php ->[get]http://localhost:8090/users/logout.php
+# [get]http://localhost:8090/users/register.php ->[get]http://localhost:8090/pictures/purchased.php
+# [get]http://localhost:8090/users/register.php ->[get]http://localhost:8090/users/view.php?userid=12
 
 
     
